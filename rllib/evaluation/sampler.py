@@ -858,7 +858,7 @@ def _process_observations(
             episode._set_last_raw_obs(agent_id, raw_obs)
             episode._set_last_done(agent_id, agent_done)
             # Infos from the environment.
-            agent_infos = infos[env_id].get(agent_id, {})
+            agent_infos = infos[env_id].get(agent_id, [])
             episode._set_last_info(agent_id, agent_infos)
 
             # Record transition info if applicable.
@@ -866,8 +866,7 @@ def _process_observations(
                 sample_collector.add_init_obs(episode, agent_id, env_id,
                                               policy_id, episode.length - 1,
                                               filtered_obs)
-            elif agent_infos is None or agent_infos.get(
-                    "training_enabled", True):
+            elif agent_infos is None or True:
                 # Add actions, rewards, next-obs to collectors.
                 values_dict = {
                     SampleBatch.T: episode.length - 1,

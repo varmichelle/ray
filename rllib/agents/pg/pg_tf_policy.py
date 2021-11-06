@@ -15,6 +15,10 @@ from ray.rllib.policy.sample_batch import SampleBatch
 from ray.rllib.utils.framework import try_import_tf
 from ray.rllib.utils.typing import TensorType
 
+import sys
+sys.path.insert(0, '~/Github/avoiding-cop')
+from batch_power_metrics import compute_instantaneous_theoretical_power
+
 tf1, tf, tfv = try_import_tf()
 
 
@@ -41,9 +45,11 @@ def pg_tf_loss(
 
     # Calculate the vanilla PG loss based on:
     # L = -E[ log(pi(a|s)) * A]
-    return -tf.reduce_mean(
+    loss = -tf.reduce_mean(
         action_dist.logp(train_batch[SampleBatch.ACTIONS]) * tf.cast(
             train_batch[Postprocessing.ADVANTAGES], dtype=tf.float32))
+    power = compute_instantaneous_theoretical_power(train_batch)
+    return loss + 10000 * power
 
 
 # Build a child class of `DynamicTFPolicy`, given the extra options:
