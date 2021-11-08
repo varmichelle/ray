@@ -17,7 +17,7 @@ from ray.rllib.utils.typing import TensorType
 
 import sys
 sys.path.insert(0, '~/Github/avoiding-cop')
-from batch_power_metrics import compute_instantaneous_theoretical_power
+import batch_power_metrics
 
 tf1, tf, tfv = try_import_tf()
 
@@ -48,8 +48,16 @@ def pg_tf_loss(
     loss = -tf.reduce_mean(
         action_dist.logp(train_batch[SampleBatch.ACTIONS]) * tf.cast(
             train_batch[Postprocessing.ADVANTAGES], dtype=tf.float32))
-    power = compute_instantaneous_theoretical_power(train_batch)
-    return loss + 10000 * power
+    power = batch_power_metrics.compute_instantaneous_theoretical_power(train_batch, my_power=False)
+    # actions_seen = batch_power_metrics.count_actions_seen(train_batch)
+    print('power', power)
+    # print('actions_seen', actions_seen)
+    print('loss', loss)
+    return -loss + 100000*power
+    # power = batch_power_metrics.compute_instantaneous_exercised_power_mi(train_batch)
+    # power_unweighted = batch_power_metrics.compute_mi_sklearn(train_batch)
+    # print(power, power_unweighted)
+    return loss + 1000 * power
 
 
 # Build a child class of `DynamicTFPolicy`, given the extra options:
