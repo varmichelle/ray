@@ -3,10 +3,11 @@ TensorFlow policy class used for PG.
 """
 
 from typing import List, Type, Union
+import numpy as np
 
 import ray
 from ray.rllib.agents.pg.utils import post_process_advantages
-from ray.rllib.evaluation.postprocessing import Postprocessing
+from ray.rllib.evaluation.postprocessing import Postprocessing, discount_cumsum
 from ray.rllib.models.action_dist import ActionDistribution
 from ray.rllib.models.modelv2 import ModelV2
 from ray.rllib.policy import Policy
@@ -18,6 +19,7 @@ from ray.rllib.utils.typing import TensorType
 import sys
 sys.path.insert(0, '~/Github/avoiding-cop')
 import batch_power_metrics
+import gt_batch_power_metrics
 
 tf1, tf, tfv = try_import_tf()
 
@@ -37,6 +39,9 @@ def pg_tf_loss(
         Union[TensorType, List[TensorType]]: A single loss tensor or a list
             of loss tensors.
     """
+    # Update advantages with power intrinsic reward 
+    update_advantages_with_power(policy, train_batch)
+
     # Pass the training data through our model to get distribution parameters.
     dist_inputs, _ = model(train_batch)
 
@@ -48,16 +53,26 @@ def pg_tf_loss(
     loss = -tf.reduce_mean(
         action_dist.logp(train_batch[SampleBatch.ACTIONS]) * tf.cast(
             train_batch[Postprocessing.ADVANTAGES], dtype=tf.float32))
-    power = batch_power_metrics.compute_instantaneous_theoretical_power(train_batch, my_power=False)
-    # actions_seen = batch_power_metrics.count_actions_seen(train_batch)
-    print('power', power)
-    # print('actions_seen', actions_seen)
-    print('loss', loss)
-    return -loss + 100000*power
-    # power = batch_power_metrics.compute_instantaneous_exercised_power_mi(train_batch)
-    # power_unweighted = batch_power_metrics.compute_mi_sklearn(train_batch)
-    # print(power, power_unweighted)
-    return loss + 1000 * power
+
+    return loss
+
+
+def update_advantages_with_power(policy: Policy, train_batch: SampleBatch):
+    power_rewards = batch_power_metrics.compute_instantaneous_exercised_power_null(train_batch, my_power=False)
+    # power_rewards = batch_power_metrics.compute_instantaneous_theoretical_power(train_batch, my_power=False)
+    if power_rewards is None:
+        return
+    traj_len = 20  # TODO: add traj len to infos and grab it here
+    traj_rewards_list = np.array_split(power_rewards, int(power_rewards.shape[0]/traj_len))
+    processed_im_list = []
+    for traj_rewards in traj_rewards_list:
+        traj_rewards = np.concatenate([traj_rewards, np.array([0])])  # 0 for 0 value state at end of traj
+        # print('traj_rewards', traj_rewards)
+        processed_im_for_traj = discount_cumsum(traj_rewards, policy.config["gamma"])[:-1].astype(np.float32)
+        # print('processed_im_for_traj', processed_im_for_traj)
+        processed_im_list.append(processed_im_for_traj)
+    final_power = np.concatenate(processed_im_list)
+    train_batch[Postprocessing.ADVANTAGES] -= 100*final_power
 
 
 # Build a child class of `DynamicTFPolicy`, given the extra options:
