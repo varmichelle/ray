@@ -18,8 +18,7 @@ from ray.rllib.utils.typing import TensorType
 
 import sys
 sys.path.insert(0, '~/Github/avoiding-cop')
-import batch_power_metrics
-import gt_batch_power_metrics
+import main
 
 tf1, tf, tfv = try_import_tf()
 
@@ -58,8 +57,7 @@ def pg_tf_loss(
 
 
 def update_advantages_with_power(policy: Policy, train_batch: SampleBatch):
-    power_rewards = batch_power_metrics.compute_instantaneous_exercised_power_null(train_batch, my_power=False)
-    # power_rewards = batch_power_metrics.compute_instantaneous_theoretical_power(train_batch, my_power=False)
+    power_rewards = main.compute_power(train_batch)
     if power_rewards is None:
         return
     traj_len = 20  # TODO: add traj len to infos and grab it here
@@ -72,7 +70,7 @@ def update_advantages_with_power(policy: Policy, train_batch: SampleBatch):
         # print('processed_im_for_traj', processed_im_for_traj)
         processed_im_list.append(processed_im_for_traj)
     final_power = np.concatenate(processed_im_list)
-    train_batch[Postprocessing.ADVANTAGES] -= 100*final_power
+    train_batch[Postprocessing.ADVANTAGES] -= final_power
 
 
 # Build a child class of `DynamicTFPolicy`, given the extra options:
