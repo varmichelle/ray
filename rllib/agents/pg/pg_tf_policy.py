@@ -60,7 +60,8 @@ def update_advantages_with_power(policy: Policy, train_batch: SampleBatch):
     power_rewards = main.compute_power(train_batch)
     if power_rewards is None:
         return
-    traj_len = 1  # TODO: add traj len to infos and grab it here
+    infos = train_batch[SampleBatch.INFOS]
+    traj_len = int(infos[0,-1])
     traj_rewards_list = np.array_split(power_rewards, int(power_rewards.shape[0]/traj_len))
     processed_im_list = []
     for traj_rewards in traj_rewards_list:
