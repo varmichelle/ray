@@ -67,7 +67,8 @@ def update_advantages_with_power(policy: Policy, train_batch: SampleBatch):
     for traj_rewards in traj_rewards_list:
         traj_rewards = np.concatenate([traj_rewards, np.array([0])])  # 0 for 0 value state at end of traj
         # print('traj_rewards', traj_rewards)
-        processed_im_for_traj = discount_cumsum(traj_rewards, policy.config["gamma"])[:-1].astype(np.float32)
+        # the 1 below is discount factor
+        processed_im_for_traj = discount_cumsum(traj_rewards, 1)[:-1].astype(np.float32)
         # print('processed_im_for_traj', processed_im_for_traj)
         processed_im_list.append(processed_im_for_traj)
     final_power = np.concatenate(processed_im_list)
