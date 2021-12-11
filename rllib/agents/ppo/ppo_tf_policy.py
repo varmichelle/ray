@@ -23,6 +23,7 @@ from ray.rllib.utils.framework import try_import_tf, get_variable
 from ray.rllib.utils.tf_utils import explained_variance, make_tf_callable
 from ray.rllib.utils.typing import AgentID, LocalOptimizer, ModelGradients, \
     TensorType, TrainerConfigDict
+from ray.rllib.agents.pg.pg_tf_policy import update_advantages_with_power
 
 tf1, tf, tfv = try_import_tf()
 
@@ -46,6 +47,9 @@ def ppo_surrogate_loss(
         Union[TensorType, List[TensorType]]: A single loss tensor or a list
             of loss tensors.
     """
+    # Update advantages with power intrinsic reward 
+    update_advantages_with_power(policy, train_batch)
+
     if isinstance(model, tf.keras.Model):
         logits, state, extra_outs = model(train_batch)
         value_fn_out = extra_outs[SampleBatch.VF_PREDS]
