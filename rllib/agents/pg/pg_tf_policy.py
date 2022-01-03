@@ -18,7 +18,7 @@ from ray.rllib.utils.typing import TensorType
 
 import sys
 sys.path.insert(0, '~/Github/avoiding-cop')
-import main
+from main import compute_power
 
 tf1, tf, tfv = try_import_tf()
 
@@ -57,7 +57,7 @@ def pg_tf_loss(
 
 
 def update_advantages_with_power(policy: Policy, train_batch: SampleBatch):
-    power_rewards = main.compute_power(train_batch)
+    power_rewards = compute_power(train_batch)
     if power_rewards is None:
         return
     infos = train_batch[SampleBatch.INFOS]
