@@ -13,7 +13,8 @@ import logging
 from typing import Optional, Type
 
 from ray.rllib.agents import with_common_config
-from ray.rllib.agents.ppo.ppo_tf_policy import PPOTFPolicy
+from ray.rllib.agents.ppo.ppo_tf_policy import *
+# from ray.rllib.agents.ppo.ppo_tf_policy import PPOTFPolicy
 from ray.rllib.agents.trainer_template import build_trainer
 from ray.rllib.evaluation.worker_set import WorkerSet
 from ray.rllib.execution.rollout_ops import ParallelRollouts, ConcatBatches, \
@@ -308,6 +309,23 @@ def execution_plan(workers: WorkerSet, config: TrainerConfigDict,
     return StandardMetricsReporting(train_op, workers, config) \
         .for_each(lambda result: warn_about_bad_reward_scales(config, result))
 
+
+# Build a child class of `DynamicTFPolicy`, given the custom functions defined
+# above.
+PPOTFPolicy = build_tf_policy(
+    name="PPOTFPolicy",
+    loss_fn=ppo_surrogate_loss,
+    get_default_config=lambda: ray.rllib.agents.ppo.ppo.DEFAULT_CONFIG,
+    postprocess_fn=compute_gae_for_sample_batch,
+    stats_fn=kl_and_loss_stats,
+    compute_gradients_fn=compute_and_clip_gradients,
+    extra_action_out_fn=vf_preds_fetches,
+    before_init=setup_config,
+    before_loss_init=setup_mixins,
+    mixins=[
+        LearningRateSchedule, EntropyCoeffSchedule, KLCoeffMixin,
+        ValueNetworkMixin
+    ])
 
 # Build a child class of `Trainer`, which uses the framework specific Policy
 # determined in `get_policy_class()` above.

@@ -1,7 +1,7 @@
 import concurrent.futures
 from functools import partial
 import logging
-from typing import Callable, Iterable, List, Optional, Type, Union
+from typing import Callable, Dict, Iterable, List, Optional, Type, Union
 
 from ray.rllib.agents.trainer import Trainer, COMMON_CONFIG
 from ray.rllib.env.env_context import EnvContext
@@ -129,8 +129,8 @@ def build_trainer(
         _default_config = default_config or COMMON_CONFIG
         _policy_class = default_policy
 
-        def __init__(self, config=None, env=None, logger_creator=None):
-            Trainer.__init__(self, config, env, logger_creator)
+        def __init__(self, config=None, env=None, logger_creator=None, power_config=None):
+            Trainer.__init__(self, config, env, logger_creator, power_config)
 
         @override(base)
         def setup(self, config: PartialTrainerConfigDict):

@@ -588,7 +588,8 @@ class Trainer(Trainable):
     def __init__(self,
                  config: TrainerConfigDict = None,
                  env: Union[str, EnvType, None] = None,
-                 logger_creator: Callable[[], Logger] = None):
+                 logger_creator: Callable[[], Logger] = None,
+                 power_config: Dict = None):
         """Initializes a Trainer instance.
 
         Args:
@@ -600,7 +601,11 @@ class Trainer(Trainable):
                 the "env" key in `config`.
             logger_creator: Callable that creates a ray.tune.Logger
                 object. If unspecified, a default logger is created.
+            power_config: Dict mapping config variable names to values for 
+                intrinsic motivation based on power.
         """
+
+        self.power_config = power_config
 
         # User provided config (this is w/o the default Trainer's
         # `COMMON_CONFIG` (see above)). Will get merged with COMMON_CONFIG
