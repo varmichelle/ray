@@ -1,15 +1,17 @@
 import copy
 import gym
+from gym.spaces import Box, Discrete, MultiDiscrete, Space
 import logging
 import numpy as np
 import platform
 import os
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, \
+import tree  # pip install dm_tree
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, \
     TYPE_CHECKING, Union
 
 import ray
 from ray import cloudpickle as pickle
-from ray.rllib.env.base_env import BaseEnv
+from ray.rllib.env.base_env import BaseEnv, convert_to_base_env
 from ray.rllib.env.env_context import EnvContext
 from ray.rllib.env.external_env import ExternalEnv
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
@@ -44,7 +46,7 @@ from ray.rllib.utils.tf_run_builder import TFRunBuilder
 from ray.rllib.utils.typing import AgentID, EnvConfigDict, EnvType, \
     ModelConfigDict, ModelGradients, ModelWeights, \
     MultiAgentPolicyConfigDict, PartialTrainerConfigDict, PolicyID, \
-    SampleBatchType
+    SampleBatchType, T
 from ray.util.debug import log_once, disable_log_once_globally, \
     enable_periodic_logging
 from ray.util.iter import ParallelIteratorWorker
@@ -53,9 +55,6 @@ if TYPE_CHECKING:
     from ray.rllib.evaluation.episode import Episode
     from ray.rllib.evaluation.observation_function import ObservationFunction
     from ray.rllib.agents.callbacks import DefaultCallbacks  # noqa
-
-# Generic type var for foreach_* methods.
-T = TypeVar("T")
 
 tf1, tf, tfv = try_import_tf()
 torch, _ = try_import_torch()
@@ -225,8 +224,7 @@ class RolloutWorker(ParallelIteratorWorker):
             seed: int = None,
             extra_python_environs: Optional[dict] = None,
             fake_sampler: bool = False,
-            spaces: Optional[Dict[PolicyID, Tuple[gym.spaces.Space,
-                                                  gym.spaces.Space]]] = None,
+            spaces: Optional[Dict[PolicyID, Tuple[Space, Space]]] = None,
             policy=None,
             monitor_path=None,
     ):
@@ -609,11 +607,15 @@ class RolloutWorker(ParallelIteratorWorker):
                     f"env {self.env} is not a subclass of BaseEnv, "
                     f"MultiAgentEnv, ActorHandle, or ExternalMultiAgentEnv!")
 
-        self.filters: Dict[PolicyID, Filter] = {
-            policy_id: get_filter(self.observation_filter,
-                                  policy.observation_space.shape)
-            for (policy_id, policy) in self.policy_map.items()
-        }
+        self.filters: Dict[PolicyID, Filter] = {}
+        for (policy_id, policy) in self.policy_map.items():
+            filter_shape = tree.map_structure(
+                lambda s: (None if isinstance(  # noqa
+                    s, (Discrete, MultiDiscrete)) else np.array(s.shape)),
+                policy.observation_space_struct)
+            self.filters[policy_id] = get_filter(self.observation_filter,
+                                                 filter_shape)
+
         if self.worker_index == 0:
             logger.info("Built filter map: {}".format(self.filters))
 
@@ -630,13 +632,12 @@ class RolloutWorker(ParallelIteratorWorker):
         # vectorized under the hood).
         else:
             # Always use vector env for consistency even if num_envs = 1.
-            self.async_env: BaseEnv = BaseEnv.to_base_env(
+            self.async_env: BaseEnv = convert_to_base_env(
                 self.env,
                 make_env=self.make_sub_env_fn,
                 num_envs=num_envs,
                 remote_envs=remote_worker_envs,
                 remote_env_batch_wait_ms=remote_env_batch_wait_ms,
-                policy_config=policy_config,
             )
 
         # `truncate_episodes`: Allow a batch to contain more than one episode
@@ -1079,8 +1080,8 @@ class RolloutWorker(ParallelIteratorWorker):
             *,
             policy_id: PolicyID,
             policy_cls: Type[Policy],
-            observation_space: Optional[gym.spaces.Space] = None,
-            action_space: Optional[gym.spaces.Space] = None,
+            observation_space: Optional[Space] = None,
+            action_space: Optional[Space] = None,
             config: Optional[PartialTrainerConfigDict] = None,
             policy_mapping_fn: Optional[Callable[[AgentID, "Episode"],
                                                  PolicyID]] = None,
@@ -1432,19 +1433,26 @@ class RolloutWorker(ParallelIteratorWorker):
                 sess.close()
 
     @DeveloperAPI
-    def apply(self, func: Callable[["RolloutWorker", Optional[Any]], T],
-              *args) -> T:
+    def apply(
+            self,
+            func: Callable[["RolloutWorker", Optional[Any], Optional[Any]], T],
+            *args, **kwargs) -> T:
         """Calls the given function with this rollout worker instance.
 
+        Useful for when the RolloutWorker class has been converted into a
+        ActorHandle and the user needs to execute some functionality (e.g.
+        add a property) on the underlying policy object.
+
         Args:
-            func: The function to call with this RolloutWorker as first
-                argument.
+            func: The function to call, with this RolloutWorker as first
+                argument, followed by args, and kwargs.
             args: Optional additional args to pass to the function call.
+            kwargs: Optional additional kwargs to pass to the function call.
 
         Returns:
             The return value of the function call.
         """
-        return func(self, *args)
+        return func(self, *args, **kwargs)
 
     def setup_torch_data_parallel(self, url: str, world_rank: int,
                                   world_size: int, backend: str) -> None:
@@ -1483,8 +1491,8 @@ class RolloutWorker(ParallelIteratorWorker):
     @DeveloperAPI
     def find_free_port(self) -> int:
         """Finds a free port on the node that this worker runs on."""
-        from ray.util.sgd import utils
-        return utils.find_free_port()
+        from ray.util.ml_utils.util import find_free_port
+        return find_free_port()
 
     def __del__(self):
         """If this worker is deleted, clears all resources used by it."""
@@ -1587,8 +1595,7 @@ class RolloutWorker(ParallelIteratorWorker):
 def _determine_spaces_for_multi_agent_dict(
         multi_agent_dict: MultiAgentPolicyConfigDict,
         env: Optional[EnvType] = None,
-        spaces: Optional[Dict[PolicyID, Tuple[gym.spaces.Space,
-                                              gym.spaces.Space]]] = None,
+        spaces: Optional[Dict[PolicyID, Tuple[Space, Space]]] = None,
         policy_config: Optional[PartialTrainerConfigDict] = None,
 ) -> MultiAgentPolicyConfigDict:
 
@@ -1686,11 +1693,10 @@ def _validate_env(env: EnvType, env_context: EnvContext = None):
         # Get a dummy observation by resetting the env.
         dummy_obs = env.reset()
         # Convert lists to np.ndarrays.
-        if type(dummy_obs) is list and isinstance(env.observation_space,
-                                                  gym.spaces.Box):
+        if type(dummy_obs) is list and isinstance(env.observation_space, Box):
             dummy_obs = np.array(dummy_obs)
         # Ignore float32/float64 diffs.
-        if isinstance(env.observation_space, gym.spaces.Box) and \
+        if isinstance(env.observation_space, Box) and \
                 env.observation_space.dtype != dummy_obs.dtype:
             dummy_obs = dummy_obs.astype(env.observation_space.dtype)
         # Check, if observation is ok (part of the observation space). If not,

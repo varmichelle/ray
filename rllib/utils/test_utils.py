@@ -14,7 +14,7 @@ import ray
 from ray.rllib.utils.framework import try_import_jax, try_import_tf, \
     try_import_torch
 from ray.rllib.utils.typing import PartialTrainerConfigDict
-from ray.tune import run_experiments
+from ray.tune import CLIReporter, run_experiments
 
 jax, _ = try_import_jax()
 tf1, tf, tfv = try_import_tf()
@@ -214,7 +214,7 @@ def check(x, y, decimals=5, atol=None, rtol=None, false=False):
                 "ERROR: x ({}) is not the same as y ({})!".format(x, y)
     # String/byte comparisons.
     elif hasattr(x, "dtype") and \
-            (x.dtype == np.object or str(x.dtype).startswith("<U")):
+            (x.dtype == object or str(x.dtype).startswith("<U")):
         try:
             np.testing.assert_array_equal(x, y)
             if false is True:
@@ -307,11 +307,15 @@ def check_compute_single_action(trainer,
         ValueError: If anything unexpected happens.
     """
     # Have to import this here to avoid circular dependency.
-    from ray.rllib.policy.sample_batch import SampleBatch
+    from ray.rllib.policy.sample_batch import DEFAULT_POLICY_ID, SampleBatch
 
     # Some Trainers may not abide to the standard API.
+    pid = DEFAULT_POLICY_ID
     try:
-        pol = trainer.get_policy()
+        # Multi-agent: Pick any policy (or DEFAULT_POLICY if it's the only
+        # one).
+        pid = next(iter(trainer.workers.local_worker().policy_map))
+        pol = trainer.get_policy(pid)
     except AttributeError:
         pol = trainer.policy
     # Get the policy's model.
@@ -324,6 +328,7 @@ def check_compute_single_action(trainer,
         call_kwargs = {}
         if what is trainer:
             call_kwargs["full_fetch"] = full_fetch
+            call_kwargs["policy_id"] = pid
 
         obs = obs_space.sample()
         if isinstance(obs_space, Box):
@@ -422,14 +427,17 @@ def check_compute_single_action(trainer,
         if what is trainer:
             # Get the obs-space from Workers.env (not Policy) due to possible
             # pre-processor up front.
-            worker_set = getattr(trainer, "workers",
-                                 getattr(trainer, "_workers", None))
+            worker_set = getattr(trainer, "workers")
+            # TODO: ES and ARS use `self._workers` instead of `self.workers` to
+            #  store their rollout worker set. Change to `self.workers`.
+            if worker_set is None:
+                worker_set = getattr(trainer, "_workers", None)
             assert worker_set
             if isinstance(worker_set, list):
-                obs_space = trainer.get_policy().observation_space
+                obs_space = trainer.get_policy(pid).observation_space
             else:
                 obs_space = worker_set.local_worker().for_policy(
-                    lambda p: p.observation_space)
+                    lambda p: p.observation_space, policy_id=pid)
             obs_space = getattr(obs_space, "original_space", obs_space)
         else:
             obs_space = pol.observation_space
@@ -485,7 +493,7 @@ def check_train_results(train_results):
     from ray.rllib.policy.sample_batch import DEFAULT_POLICY_ID
     from ray.rllib.utils.metrics.learner_info import LEARNER_INFO, \
         LEARNER_STATS_KEY
-    from ray.rllib.utils.multi_agent import check_multi_agent
+    from ray.rllib.utils.pre_checks.multi_agent import check_multi_agent
 
     # Assert that some keys are where we would expect them.
     for key in [
@@ -523,8 +531,8 @@ def check_train_results(train_results):
     info = train_results["info"]
     assert LEARNER_INFO in info, \
         f"'learner' not in train_results['infos'] ({info})!"
-    assert "num_steps_trained" in info,\
-        f"'num_steps_trained' not in train_results['infos'] ({info})!"
+    assert "num_steps_trained" in info or "num_env_steps_trained" in info, \
+        f"'num_(env_)?steps_trained' not in train_results['infos'] ({info})!"
 
     learner_info = info[LEARNER_INFO]
 
@@ -588,6 +596,8 @@ def run_learning_tests_from_yaml(
     experiments = {}
     # The results per experiment.
     checks = {}
+    # Metrics per experiment.
+    stats = {}
 
     start_time = time.monotonic()
 
@@ -600,14 +610,18 @@ def run_learning_tests_from_yaml(
         for k, e in tf_experiments.items():
             # If framework explicitly given, only test for that framework.
             # Some algos do not have both versions available.
-            if "framework" in e["config"]:
-                frameworks = [e["config"]["framework"]]
+            if "frameworks" in e:
+                frameworks = e["frameworks"]
             else:
+                # By default we don't run tf2, because tf2's multi-gpu support
+                # isn't complete yet.
                 frameworks = ["tf", "torch"]
-                e["config"]["framework"] = "tf"
+            # Pop frameworks key to not confuse Tune.
+            e.pop("frameworks", None)
 
-            e["stop"] = e["stop"] or {}
-            e["pass_criteria"] = e["pass_criteria"] or {}
+            e["stop"] = e["stop"] if "stop" in e else {}
+            e["pass_criteria"] = e[
+                "pass_criteria"] if "pass_criteria" in e else {}
 
             # For smoke-tests, we just run for n min.
             if smoke_test:
@@ -623,39 +637,30 @@ def run_learning_tests_from_yaml(
                 if min_reward is not None:
                     e["stop"]["episode_reward_mean"] = min_reward
 
-            keys = []
-            # Generate the torch copy of the experiment.
-            if len(frameworks) == 2:
-                e_torch = copy.deepcopy(e)
-                e_torch["config"]["framework"] = "torch"
-                keys.append(re.sub("^(\\w+)-", "\\1-tf-", k))
-                keys.append(re.sub("-tf-", "-torch-", keys[0]))
-                experiments[keys[0]] = e
-                experiments[keys[1]] = e_torch
-            # tf-only.
-            elif frameworks[0] == "tf":
-                keys.append(re.sub("^(\\w+)-", "\\1-tf-", k))
-                experiments[keys[0]] = e
-            # torch-only.
-            else:
-                keys.append(re.sub("^(\\w+)-", "\\1-torch-", k))
-                experiments[keys[0]] = e
+            # Generate `checks` dict for all experiments
+            # (tf, tf2 and/or torch).
+            for framework in frameworks:
+                k_ = k + "-" + framework
+                ec = copy.deepcopy(e)
+                ec["config"]["framework"] = framework
+                if framework == "tf2":
+                    ec["config"]["eager_tracing"] = True
 
-            # Generate `checks` dict for all experiments (tf and/or torch).
-            for k_ in keys:
-                e = experiments[k_]
                 checks[k_] = {
-                    "min_reward": e["pass_criteria"].get(
-                        "episode_reward_mean"),
-                    "min_throughput": e["pass_criteria"].get(
+                    "min_reward": ec["pass_criteria"].get(
+                        "episode_reward_mean", 0.0),
+                    "min_throughput": ec["pass_criteria"].get(
                         "timesteps_total", 0.0) /
-                    (e["stop"].get("time_total_s", 1.0) or 1.0),
-                    "time_total_s": e["stop"].get("time_total_s"),
+                    (ec["stop"].get("time_total_s", 1.0) or 1.0),
+                    "time_total_s": ec["stop"].get("time_total_s"),
                     "failures": 0,
                     "passed": False,
                 }
                 # This key would break tune.
-                e.pop("pass_criteria", None)
+                ec.pop("pass_criteria", None)
+
+                # One experiment to run.
+                experiments[k_] = ec
 
     # Print out the actual config.
     print("== Test config ==")
@@ -679,7 +684,23 @@ def run_learning_tests_from_yaml(
         print(f"Starting learning test iteration {i}...")
 
         # Run remaining experiments.
-        trials = run_experiments(experiments_to_run, resume=False, verbose=2)
+        trials = run_experiments(
+            experiments_to_run,
+            resume=False,
+            verbose=2,
+            progress_reporter=CLIReporter(
+                metric_columns={
+                    "training_iteration": "iter",
+                    "time_total_s": "time_total_s",
+                    "timesteps_total": "ts",
+                    "episodes_this_iter": "train_episodes",
+                    "episode_reward_mean": "reward_mean",
+                    "evaluation/episode_reward_mean": "eval_reward_mean",
+                },
+                sort_by_metric=True,
+                max_report_frequency=30,
+            ))
+
         all_trials.extend(trials)
 
         # Check each experiment for whether it passed.
@@ -735,10 +756,19 @@ def run_learning_tests_from_yaml(
                     for t in trials_for_experiment
                 ])
 
+                # TODO(jungong) : track trainer and env throughput separately.
                 throughput = timesteps_total / (total_time_s or 1.0)
-                desired_throughput = None
-                # TODO(Jun): Stop checking throughput for now.
+                # TODO(jungong) : enable throughput check again after
+                #   TD3_HalfCheetahBulletEnv is fixed and verified.
                 # desired_throughput = checks[experiment]["min_throughput"]
+                desired_throughput = None
+
+                # Record performance.
+                stats[experiment] = {
+                    "episode_reward_mean": float(episode_reward_mean),
+                    "throughput": (float(throughput)
+                                   if throughput is not None else 0.0),
+                }
 
                 print(f" ... Desired reward={desired_reward}; "
                       f"desired throughput={desired_throughput}")
@@ -764,9 +794,10 @@ def run_learning_tests_from_yaml(
 
     # Create results dict and write it to disk.
     result = {
-        "time_taken": time_taken,
+        "time_taken": float(time_taken),
         "trial_states": dict(Counter([trial.status for trial in all_trials])),
-        "last_update": time.time(),
+        "last_update": float(time.time()),
+        "stats": stats,
         "passed": [k for k, exp in checks.items() if exp["passed"]],
         "failures": {
             k: exp["failures"]

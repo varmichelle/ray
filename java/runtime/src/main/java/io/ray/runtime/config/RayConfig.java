@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.SystemUtils;
 
 /** Configurations of Ray runtime. See `ray.default.conf` for the meaning of each field. */
 public class RayConfig {
@@ -111,8 +112,15 @@ public class RayConfig {
     if (config.hasPath("ray.node-ip")) {
       nodeIp = config.getString("ray.node-ip");
     } else {
-      nodeIp = NetworkUtil.getIpAddress(null);
+      if (SystemUtils.IS_OS_LINUX) {
+        nodeIp = NetworkUtil.getIpAddress(null);
+      } else {
+        /// We use a localhost on MacOS or Windows to avid security popups.
+        /// See the related issue https://github.com/ray-project/ray/issues/18730
+        nodeIp = NetworkUtil.localhostIp();
+      }
     }
+
     // Job id.
     String jobId = config.getString("ray.job.id");
     if (!jobId.isEmpty()) {
@@ -123,7 +131,13 @@ public class RayConfig {
 
     // Namespace of this job.
     String localNamespace = config.getString("ray.job.namespace");
-    namespace = StringUtils.isEmpty(localNamespace) ? UUID.randomUUID().toString() : localNamespace;
+    if (workerMode == WorkerType.DRIVER) {
+      namespace =
+          StringUtils.isEmpty(localNamespace) ? UUID.randomUUID().toString() : localNamespace;
+    } else {
+      /// We shouldn't set it for worker.
+      namespace = null;
+    }
 
     // jvm options for java workers of this job.
     jvmOptionsForJavaWorker = config.getStringList("ray.job.jvm-options");
