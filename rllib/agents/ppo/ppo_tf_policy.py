@@ -25,6 +25,8 @@ from ray.rllib.utils.typing import AgentID, LocalOptimizer, ModelGradients, \
     TensorType, TrainerConfigDict
 from ray.rllib.agents.pg.pg_tf_policy import update_advantages_with_power
 
+import random
+
 tf1, tf, tfv = try_import_tf()
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,14 @@ def ppo_surrogate_loss(
         Union[TensorType, List[TensorType]]: A single loss tensor or a list
             of loss tensors.
     """
+    # infos = train_batch[SampleBatch.INFOS]
+    # print('infos', infos)
+    # observations = train_batch[SampleBatch.OBS]
+    # print('observations', observations)
+    # actions = train_batch[SampleBatch.ACTIONS]
+    # print('actions', actions)
+    # rewards = train_batch[SampleBatch.REWARDS]
+    # print('rewards', rewards)
     # Update advantages with power intrinsic reward 
     update_advantages_with_power(policy, train_batch)
 
@@ -126,6 +136,9 @@ def ppo_surrogate_loss(
     # Backward compatibility: Deprecate policy._mean_kl.
     policy._mean_kl_loss = policy._mean_kl = mean_kl_loss
     policy._value_fn_out = value_fn_out
+
+    if random.random() < 0.01:
+        print("VF", model.value_function())
 
     return total_loss
 

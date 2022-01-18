@@ -44,6 +44,8 @@ def pg_tf_loss(
     # Pass the training data through our model to get distribution parameters.
     dist_inputs, _ = model(train_batch)
 
+    print(model.value_function())
+    
     # Create an action distribution object.
     action_dist = dist_class(dist_inputs, model)
 

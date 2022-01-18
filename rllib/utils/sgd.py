@@ -39,6 +39,8 @@ def minibatches(samples: SampleBatch,
     Yields:
         SampleBatch: Each of size `sgd_minibatch_size`.
     """
+    # shuffle = False
+
     if not sgd_minibatch_size:
         yield samples
         return
@@ -55,6 +57,7 @@ def minibatches(samples: SampleBatch,
 
     if len(state_slices) == 0:
         if shuffle:
+            # print('shuffle')
             random.shuffle(data_slices)
         for i, j in data_slices:
             yield samples.slice(i, j)
@@ -100,14 +103,32 @@ def do_minibatch_sgd(samples, policies, local_worker, num_sgd_iter,
         for field in standardize_fields:
             batch[field] = standardized(batch[field])
 
+        # infos = batch[SampleBatch.INFOS]
+        # print('infos', infos)
+        # observations = batch[SampleBatch.OBS]
+        # print('observations', observations)
+        # actions = batch[SampleBatch.ACTIONS]
+        # print('actions', actions)
+        # rewards = batch[SampleBatch.REWARDS]
+        # print('rewards', rewards)
+
         for i in range(num_sgd_iter):
             for minibatch in minibatches(batch, sgd_minibatch_size):
+                # obs = minibatch[SampleBatch.OBS]
+                # print('minibatch obs', obs)
+                # actions = minibatch[SampleBatch.ACTIONS]
+                # print('minibatch actions', actions)
+                # rewards = minibatch[SampleBatch.REWARDS]
+                # print('minibatch rewards', rewards)
+                # print()
                 results = (local_worker.learn_on_batch(
                     MultiAgentBatch({
                         policy_id: minibatch
                     }, minibatch.count)))[policy_id]
                 learner_info_builder.add_learn_on_batch_results(
                     results, policy_id)
+
+
 
     learner_info = learner_info_builder.finalize()
     return learner_info
