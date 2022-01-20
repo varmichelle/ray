@@ -8,6 +8,8 @@ from ray.rllib.policy.sample_batch import SampleBatch
 from ray.rllib.utils.annotations import DeveloperAPI
 from ray.rllib.utils.typing import AgentID
 
+import traceback
+
 
 class Postprocessing:
     """Constant definitions for postprocessing."""
@@ -67,7 +69,8 @@ def adjust_nstep(n_step: int, gamma: float, batch: SampleBatch) -> None:
 
 
 @DeveloperAPI
-def compute_advantages(rollout: SampleBatch,
+def compute_advantages(policy: Policy,
+                       rollout: SampleBatch,
                        last_r: float,
                        gamma: float = 0.9,
                        lambda_: float = 1.0,
@@ -89,6 +92,11 @@ def compute_advantages(rollout: SampleBatch,
         SampleBatch (SampleBatch): Object with experience from rollout and
             processed rewards.
     """
+    import sys
+    sys.path.insert(0, '~/Github/avoiding-cop')
+    from main import compute_power
+
+    # print(rollout[SampleBatch.REWARDS])
 
     assert SampleBatch.VF_PREDS in rollout or not use_critic, \
         "use_critic=True but values not found"
@@ -96,6 +104,19 @@ def compute_advantages(rollout: SampleBatch,
         "Can't use gae without using a value function"
 
     if use_gae:
+        # update rewards
+        power_rewards = compute_power(rollout)
+        if power_rewards is not None:
+            # print('reward type pre', type(rollout[SampleBatch.REWARDS]))
+            rollout[SampleBatch.REWARDS] -= power_rewards
+            # print('reward type post', type(rollout[SampleBatch.REWARDS]))
+            # update VF prefs
+            logits, state = policy.model(rollout)
+            # print('VF type pre', type(rollout[SampleBatch.VF_PREDS]))
+            rollout[SampleBatch.VF_PREDS] = policy.model.value_function().numpy()
+            # print('VF type post', type(rollout[SampleBatch.VF_PREDS]))
+
+        # continue existing code..
         vpred_t = np.concatenate(
             [rollout[SampleBatch.VF_PREDS],
              np.array([last_r])])
@@ -159,7 +180,12 @@ def compute_gae_for_sample_batch(
     Returns:
         SampleBatch: The postprocessed, modified SampleBatch (or a new one).
     """
-
+    # if len(sample_batch[SampleBatch.VF_PREDS]) == 2:
+    #     raise Exception
+    # print(sample_batch.keys())
+    # print('VF PREDS IN compute_gae_for_sample_batch', sample_batch[SampleBatch.VF_PREDS])
+    # print('sample_batch[Postprocessing.ADVANTAGES]', sample_batch[Postprocessing.ADVANTAGES])
+    # print('sample_batch[Postprocessing.VALUE_TARGETS]', sample_batch[Postprocessing.VALUE_TARGETS])
     # Trajectory is actually complete -> last r=0.0.
     if sample_batch[SampleBatch.DONES][-1]:
         last_r = 0.0
@@ -176,6 +202,7 @@ def compute_gae_for_sample_batch(
     # Adds the policy logits, VF preds, and advantages to the batch,
     # using GAE ("generalized advantage estimation") or not.
     batch = compute_advantages(
+        policy,
         sample_batch,
         last_r,
         policy.config["gamma"],

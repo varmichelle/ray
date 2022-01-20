@@ -39,7 +39,7 @@ def minibatches(samples: SampleBatch,
     Yields:
         SampleBatch: Each of size `sgd_minibatch_size`.
     """
-    # shuffle = False
+    shuffle = False
 
     if not sgd_minibatch_size:
         yield samples
@@ -49,15 +49,15 @@ def minibatches(samples: SampleBatch,
         raise NotImplementedError(
             "Minibatching not implemented for multi-agent in simple mode")
 
-    if "state_in_0" not in samples and "state_out_0" not in samples:
-        samples.shuffle()
+    # if "state_in_0" not in samples and "state_out_0" not in samples:
+    #     samples.shuffle()
 
     all_slices = samples._get_slice_indices(sgd_minibatch_size)
     data_slices, state_slices = all_slices
 
     if len(state_slices) == 0:
         if shuffle:
-            # print('shuffle')
+            print('shuffle')
             random.shuffle(data_slices)
         for i, j in data_slices:
             yield samples.slice(i, j)

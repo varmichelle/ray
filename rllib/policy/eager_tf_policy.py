@@ -157,6 +157,7 @@ def traced_eager_policy(eager_policy_cls):
                         experimental_relax_shapes=True))
                 self._traced_compute_actions_helper = True
 
+            print('before call in compute_actions_from_input_dict')
             # Now that the helper method is traced, call super's
             # apply_gradients (which will call the traced helper).
             return super(TracedEagerPolicy, self).\
@@ -450,6 +451,7 @@ def build_eager_tf_policy(
             self.exploration.before_compute_actions(
                 timestep=timestep, explore=explore, tf_sess=self.get_session())
 
+            # print('before calling _compute_actions_helper')
             ret = self._compute_actions_helper(
                 input_dict,
                 state_batches,
@@ -457,6 +459,7 @@ def build_eager_tf_policy(
                 None if self.config["eager_tracing"] else episodes,
                 explore,
                 timestep)
+            # print(ret[2].keys())
             # Update our global timestep by the batch size.
             self.global_timestep += int(tree.flatten(ret[0])[0].shape[0])
             return convert_to_numpy(ret)
@@ -490,6 +493,7 @@ def build_eager_tf_policy(
             if info_batch is not None:
                 input_dict[SampleBatch.INFOS] = info_batch
 
+            print('in compute actions before compute_actions_from_input_dict')
             return self.compute_actions_from_input_dict(
                 input_dict=input_dict,
                 explore=explore,
@@ -560,11 +564,15 @@ def build_eager_tf_policy(
                                    other_agent_batches=None,
                                    episode=None):
             assert tf.executing_eagerly()
+            # print("hai 1", sample_batch[SampleBatch.VF_PREDS])
             # Call super's postprocess_trajectory first.
             sample_batch = Policy.postprocess_trajectory(self, sample_batch)
+            # print("hai 2", sample_batch[SampleBatch.VF_PREDS])
             if postprocess_fn:
-                return postprocess_fn(self, sample_batch, other_agent_batches,
+                val = postprocess_fn(self, sample_batch, other_agent_batches,
                                       episode)
+                # print("hai 3", val[SampleBatch.VF_PREDS])
+                return val
             return sample_batch
 
         @with_lock

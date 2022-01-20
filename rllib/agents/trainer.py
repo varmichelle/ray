@@ -1180,7 +1180,8 @@ class Trainer(Trainable):
             timestep=timestep,
             episodes=episodes,
         )
-
+        print('infos', infos)
+        raise Exception('hi')
         # Unbatch actions for the environment into a multi-agent dict.
         single_actions = space_utils.unbatch(actions)
         actions = {}

@@ -347,6 +347,7 @@ def build_policy_class(
                              action_dist):
             with self._no_grad_context():
                 if extra_action_out_fn:
+                    print('extra_action_out in policy_template')
                     stats_dict = extra_action_out_fn(
                         self, input_dict, state_batches, model, action_dist)
                 else:

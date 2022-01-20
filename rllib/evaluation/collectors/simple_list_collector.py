@@ -158,6 +158,9 @@ class _AgentCollector:
         self.buffers[SampleBatch.UNROLL_ID][0].append(self.unroll_id)
 
         for k, v in values.items():
+            # if k == SampleBatch.VF_PREDS:
+            #     print('v', v)
+                # raise Exception("hello in add_action_reward_next_obs")
             if k not in self.buffers:
                 self._build_buffers(single_row=values)
             # Do not flatten infos, state_out_ and actions.
@@ -196,7 +199,9 @@ class _AgentCollector:
 
         batch_data = {}
         np_data = {}
+        # print('self.buffers', self.buffers)
         for view_col, view_req in view_requirements.items():
+            # print(view_col, view_req)
             # Create the batch of data from the different buffers.
             data_col = view_req.data_col or view_col
 
@@ -320,10 +325,13 @@ class _AgentCollector:
                 else:
                     batch_data[view_col] = tree.unflatten_as(
                         self.buffer_structs[data_col], data)
+                # print(view_col, batch_data[view_col])
 
         # Due to possible batch-repeats > 1, columns in the resulting batch
         # may not all have the same batch size.
         batch = SampleBatch(batch_data)
+        # print(batch.keys())
+        # raise Exception("batch in build in simple_list_collector")
 
         # Adjust the seq-lens array depending on the incoming agent sequences.
         if self.policy.is_recurrent():
@@ -726,6 +734,7 @@ class SimpleListCollector(SampleCollector):
             pid = self.agent_key_to_policy_id[(eps_id, agent_id)]
             policy = self.policy_map[pid]
             pre_batch = collector.build(policy.view_requirements)
+            # print('look here', pre_batch.keys())
             pre_batches[agent_id] = (policy, pre_batch)
 
         # Apply reward clipping before calling postprocessing functions.

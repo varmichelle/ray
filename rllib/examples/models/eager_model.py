@@ -49,6 +49,8 @@ class EagerModel(TFModelV2):
 
     @override(ModelV2)
     def value_function(self):
+        # print('\n\n\n IN VALUE FUNCTION')
+        # raise Exception('hi in value function')
         return tf.reshape(self._value_out, [-1])
 
     def forward_eager(self, feature_layer):

@@ -228,6 +228,7 @@ def build_tf_policy(
                 if extra_action_out_fn is None or policy._is_tower:
                     extra_action_fetches = {}
                 else:
+                    print('before_loss_init_wrapper in tf_policy_template')
                     extra_action_fetches = extra_action_out_fn(policy)
 
                 if hasattr(policy, "_extra_action_fetches"):
@@ -264,10 +265,13 @@ def build_tf_policy(
                                    other_agent_batches=None,
                                    episode=None):
             # Call super's postprocess_trajectory first.
+            # print('\n\n\n pre', sample_batch[SampleBatch.VF_PREDS])
             sample_batch = Policy.postprocess_trajectory(self, sample_batch)
+            # print('mid', sample_batch[SampleBatch.VF_PREDS])
             if postprocess_fn:
                 return postprocess_fn(self, sample_batch, other_agent_batches,
                                       episode)
+                # print('post', sample_batch[SampleBatch.VF_PREDS])
             return sample_batch
 
         @override(TFPolicy)

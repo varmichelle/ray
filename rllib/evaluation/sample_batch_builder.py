@@ -57,7 +57,7 @@ class SampleBatchBuilder:
 
     def build_and_reset(self) -> SampleBatch:
         """Returns a sample batch including all previously added values."""
-
+        # raise Exception('hi in build_and_reset in sample_batch_builder')
         batch = SampleBatch(
             {k: to_float_array(v)
              for k, v in self.buffers.items()})

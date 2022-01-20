@@ -890,6 +890,9 @@ def _process_observations(
                 for key, value in episode.last_extra_action_outs_for(
                         agent_id).items():
                     if key in pol.view_requirements:
+                        # if key == SampleBatch.VF_PREDS:
+                        #     print('value', value)
+                            # raise Exception('hi in _process_observations')
                         values_dict[key] = value
                 # Env infos for this agent.
                 if "infos" in pol.view_requirements:
@@ -1070,6 +1073,7 @@ def _do_policy_eval(
                 input_dict,
                 timestep=policy.global_timestep,
                 episodes=[active_episodes[t.env_id] for t in eval_data])
+        # print(policy_id, eval_results[policy_id])
 
     if log_once("compute_actions_result"):
         logger.info("Outputs of compute_actions():\n\n{}\n".format(

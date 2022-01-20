@@ -44,7 +44,7 @@ def pg_tf_loss(
     # Pass the training data through our model to get distribution parameters.
     dist_inputs, _ = model(train_batch)
 
-    print(model.value_function())
+    # print(model.value_function())
     
     # Create an action distribution object.
     action_dist = dist_class(dist_inputs, model)
@@ -74,6 +74,7 @@ def update_advantages_with_power(policy: Policy, train_batch: SampleBatch):
         # print('processed_im_for_traj', processed_im_for_traj)
         processed_im_list.append(processed_im_for_traj)
     final_power = np.concatenate(processed_im_list)
+    # print('final_power', final_power)
     train_batch[Postprocessing.ADVANTAGES] -= final_power
 
 
