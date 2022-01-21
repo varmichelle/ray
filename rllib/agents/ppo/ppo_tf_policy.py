@@ -57,9 +57,8 @@ def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
     # update advantages and value targets
     infos = train_batch[SampleBatch.INFOS]
     traj_len = int(infos[0,-1])
+    
     advantage_data = []
-    value_target_data = []
-
     for i in range(0, len(train_batch[SampleBatch.VF_PREDS]), traj_len):
         vpred_t = np.concatenate(
             [train_batch[SampleBatch.VF_PREDS][i:i+traj_len],
@@ -69,12 +68,15 @@ def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
         # This formula for the advantage comes from:
         # "Generalized Advantage Estimation": https://arxiv.org/abs/1506.02438
         advantage_data.append(discount_cumsum(delta_t, 1 * 1))
-        value_target = (
-            train_batch[Postprocessing.ADVANTAGES][i:i+traj_len] +
-            train_batch[SampleBatch.VF_PREDS][i:i+traj_len])
-        value_target_data.append(value_target)
     train_batch[Postprocessing.ADVANTAGES] *= 0
     train_batch[Postprocessing.ADVANTAGES] += np.concatenate(advantage_data)
+    
+    value_target_data = []
+    for i in range(0, len(train_batch[SampleBatch.VF_PREDS]), traj_len):
+        value_target = (
+                train_batch[Postprocessing.ADVANTAGES][i:i+traj_len] +
+                train_batch[SampleBatch.VF_PREDS][i:i+traj_len])
+        value_target_data.append(value_target)
     train_batch[Postprocessing.VALUE_TARGETS] *= 0
     train_batch[Postprocessing.VALUE_TARGETS] += np.concatenate(value_target_data)
 
@@ -99,12 +101,10 @@ def ppo_surrogate_loss(
     # Update rewards with power intrinsic reward 
     update_rewards_with_power(policy, train_batch)
     
+    # print('train_batch[SampleBatch.ACTIONS]', train_batch[SampleBatch.ACTIONS])
     # print('train_batch[SampleBatch.VF_PREDS]', train_batch[SampleBatch.VF_PREDS])
     # print('train_batch[Postprocessing.ADVANTAGES]', train_batch[Postprocessing.ADVANTAGES])
     # print('train_batch[Postprocessing.VALUE_TARGETS]', train_batch[Postprocessing.VALUE_TARGETS])
-
-    # if len(train_batch[Postprocessing.VALUE_TARGETS]) == 2:
-    #     raise Exception("hi from ppo_tf_policy")
 
     if isinstance(model, tf.keras.Model):
         logits, state, extra_outs = model(train_batch)
@@ -158,9 +158,6 @@ def ppo_surrogate_loss(
         prev_value_fn_out = train_batch[SampleBatch.VF_PREDS]
         vf_loss1 = tf.math.square(value_fn_out -
                                   train_batch[Postprocessing.VALUE_TARGETS])
-        # print('value_fn_out', value_fn_out)
-        # print('prev_value_fn_out', prev_value_fn_out)
-        # print('diff', value_fn_out - prev_value_fn_out)
         vf_clipped = prev_value_fn_out + tf.clip_by_value(
             value_fn_out - prev_value_fn_out, -policy.config["vf_clip_param"],
             policy.config["vf_clip_param"])
@@ -196,6 +193,8 @@ def ppo_surrogate_loss(
         rewards = train_batch[SampleBatch.REWARDS]
         print('rewards', rewards[:10])
         print("VF", model.value_function()[:10])
+        print('ADVANTAGES', train_batch[Postprocessing.ADVANTAGES][:10])
+        print('VALUE_TARGETS', train_batch[Postprocessing.VALUE_TARGETS][:10])
 
     return total_loss
 

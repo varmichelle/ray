@@ -263,7 +263,10 @@ class StandardizeFields:
         for policy_id in samples.policy_batches:
             batch = samples.policy_batches[policy_id]
             for field in self.fields:
+                # print('field', field)
+                # print('pre', batch[field])
                 batch[field] = standardized(batch[field])
+                # print('post', batch[field])
 
         if wrapped:
             samples = samples.policy_batches[DEFAULT_POLICY_ID]

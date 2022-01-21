@@ -18,6 +18,7 @@ from ray.rllib.utils.metrics.learner_info import LearnerInfoBuilder, \
     LEARNER_INFO
 from ray.rllib.utils.sgd import do_minibatch_sgd
 from ray.rllib.utils.typing import PolicyID, SampleBatchType, ModelGradients
+from ray.rllib.evaluation.postprocessing import Postprocessing
 
 tf1, tf, tfv = try_import_tf()
 
@@ -62,6 +63,10 @@ class TrainOneStep:
             if self.num_sgd_iter > 1 or self.sgd_minibatch_size > 0:
                 lw = self.workers.local_worker()
                 # raise Exception('train_ops call')
+                # print('batch[SampleBatch.ACTIONS]', batch.policy_batches['player_0'][SampleBatch.ACTIONS])
+                # print('batch[SampleBatch.VF_PREDS]', batch.policy_batches['player_0'][SampleBatch.VF_PREDS])
+                # print('batch[Postprocessing.ADVANTAGES]', batch.policy_batches['player_0'][Postprocessing.ADVANTAGES])
+                # print('batch[Postprocessing.VALUE_TARGETS]', batch.policy_batches['player_0'][Postprocessing.VALUE_TARGETS])
                 learner_info = do_minibatch_sgd(
                     batch, {
                         pid: lw.get_policy(pid)

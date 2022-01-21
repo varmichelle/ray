@@ -117,16 +117,12 @@ def compute_advantages(policy: Policy,
         vpred_t = np.concatenate(
             [rollout[SampleBatch.VF_PREDS],
              np.array([last_r])])
-        # print('vpred_t', vpred_t)
         delta_t = (
             rollout[SampleBatch.REWARDS] + gamma * vpred_t[1:] - vpred_t[:-1])
-        # print('delta_t', delta_t)
         # This formula for the advantage comes from:
         # "Generalized Advantage Estimation": https://arxiv.org/abs/1506.02438
         rollout[Postprocessing.ADVANTAGES] = discount_cumsum(
             delta_t, gamma * lambda_)
-        # print('vf_preds', rollout[SampleBatch.VF_PREDS])
-        # print('advantages', rollout[Postprocessing.ADVANTAGES])
         rollout[Postprocessing.VALUE_TARGETS] = (
             rollout[Postprocessing.ADVANTAGES] +
             rollout[SampleBatch.VF_PREDS]).astype(np.float32)
@@ -150,6 +146,8 @@ def compute_advantages(policy: Policy,
     rollout[Postprocessing.ADVANTAGES] = rollout[
         Postprocessing.ADVANTAGES].astype(np.float32)
 
+    # print('rollout[SampleBatch.ACTIONS]', rollout[SampleBatch.ACTIONS])
+    # print('rollout[SampleBatch.REWARDS]', rollout[SampleBatch.REWARDS])
     # print('rollout[SampleBatch.VF_PREDS]', rollout[SampleBatch.VF_PREDS])
     # print('rollout[Postprocessing.ADVANTAGES]', rollout[Postprocessing.ADVANTAGES])
     # print('rollout[Postprocessing.VALUE_TARGETS]', rollout[Postprocessing.VALUE_TARGETS])
@@ -184,12 +182,6 @@ def compute_gae_for_sample_batch(
     Returns:
         SampleBatch: The postprocessed, modified SampleBatch (or a new one).
     """
-    # if len(sample_batch[SampleBatch.VF_PREDS]) == 2:
-    #     raise Exception
-    # print(sample_batch.keys())
-    # print('VF PREDS IN compute_gae_for_sample_batch', sample_batch[SampleBatch.VF_PREDS])
-    # print('sample_batch[Postprocessing.ADVANTAGES]', sample_batch[Postprocessing.ADVANTAGES])
-    # print('sample_batch[Postprocessing.VALUE_TARGETS]', sample_batch[Postprocessing.VALUE_TARGETS])
     # Trajectory is actually complete -> last r=0.0.
     if sample_batch[SampleBatch.DONES][-1]:
         last_r = 0.0

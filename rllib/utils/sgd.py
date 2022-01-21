@@ -101,16 +101,12 @@ def do_minibatch_sgd(samples, policies, local_worker, num_sgd_iter,
             continue
 
         batch = samples.policy_batches[policy_id]
-        # if policy_id == 'player_0':
-        #     print('batch[SampleBatch.VF_PREDS]', batch[SampleBatch.VF_PREDS])
-        #     print('batch[Postprocessing.ADVANTAGES]', batch[Postprocessing.ADVANTAGES])
-        #     print('batch[Postprocessing.VALUE_TARGETS]', batch[Postprocessing.VALUE_TARGETS])
         for field in standardize_fields:
-            # print('field', field)
             batch[field] = standardized(batch[field])
 
         for i in range(num_sgd_iter):
             for minibatch in minibatches(batch, sgd_minibatch_size):
+                # print('minibatch[SampleBatch.ACTIONS]', minibatch[SampleBatch.ACTIONS])
                 # print('minibatch[SampleBatch.VF_PREDS]', minibatch[SampleBatch.VF_PREDS])
                 # print('minibatch[Postprocessing.ADVANTAGES]', minibatch[Postprocessing.ADVANTAGES])
                 # print('minibatch[Postprocessing.VALUE_TARGETS]', minibatch[Postprocessing.VALUE_TARGETS])

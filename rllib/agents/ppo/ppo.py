@@ -27,6 +27,7 @@ from ray.rllib.utils.metrics.learner_info import LEARNER_INFO, \
     LEARNER_STATS_KEY
 from ray.rllib.utils.typing import TrainerConfigDict
 from ray.util.iter import LocalIterator
+from ray.rllib.evaluation.postprocessing import Postprocessing
 
 logger = logging.getLogger(__name__)
 
@@ -281,7 +282,7 @@ def execution_plan(workers: WorkerSet, config: TrainerConfigDict,
             count_steps_by=config["multiagent"]["count_steps_by"],
         ))
     # Standardize advantages.
-    rollouts = rollouts.for_each(StandardizeFields(["advantages"]))
+    # rollouts = rollouts.for_each(StandardizeFields(["advantages"]))
 
     # Perform one training step on the combined + standardized batch.
     if config["simple_optimizer"]:
