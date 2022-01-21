@@ -48,6 +48,7 @@ from ray.rllib.utils.typing import AgentID, EnvConfigDict, EnvType, \
 from ray.util.debug import log_once, disable_log_once_globally, \
     enable_periodic_logging
 from ray.util.iter import ParallelIteratorWorker
+from ray.rllib.evaluation.postprocessing import Postprocessing
 
 if TYPE_CHECKING:
     from ray.rllib.evaluation.episode import Episode
@@ -797,6 +798,11 @@ class RolloutWorker(ParallelIteratorWorker):
 
         if self.fake_sampler:
             self.last_batch = batch
+
+        # print('sampled batch[SampleBatch.VF_PREDS]', batch.policy_batches['player_0']['vf_preds'])
+        # print('batch[Postprocessing.ADVANTAGES]', batch.policy_batches['player_0'][Postprocessing.ADVANTAGES])
+        # print('batch[Postprocessing.VALUE_TARGETS]', batch.policy_batches['player_0'][Postprocessing.VALUE_TARGETS])
+
         return batch
 
     @DeveloperAPI

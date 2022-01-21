@@ -61,6 +61,7 @@ class TrainOneStep:
             # train batch and loop through train batch `num_sgd_iter` times.
             if self.num_sgd_iter > 1 or self.sgd_minibatch_size > 0:
                 lw = self.workers.local_worker()
+                # raise Exception('train_ops call')
                 learner_info = do_minibatch_sgd(
                     batch, {
                         pid: lw.get_policy(pid)

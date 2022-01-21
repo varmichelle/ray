@@ -28,9 +28,9 @@ from ray.rllib.agents.pg.pg_tf_policy import update_advantages_with_power
 import numpy as np
 import random
 
-# import sys
-# sys.path.insert(0, '~/Github/avoiding-cop')
-# from main import compute_power
+import sys
+sys.path.insert(0, '~/Github/avoiding-cop')
+from main import compute_power
 
 tf1, tf, tfv = try_import_tf()
 
@@ -41,26 +41,11 @@ def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
     power_rewards = compute_power(train_batch)
     if power_rewards is None:
         return
-    train_batch[SampleBatch.REWARDS] -= power_rewards
 
-    infos = train_batch[SampleBatch.INFOS]
-    traj_len = int(infos[0,-1])
-    traj_rewards_list = np.array_split(power_rewards, int(power_rewards.shape[0]/traj_len))
-    processed_im_list = []
-    for traj_rewards in traj_rewards_list:
-        traj_rewards = np.concatenate([traj_rewards, np.array([0])])  # 0 for 0 value state at end of traj
-        # print('traj_rewards', traj_rewards)
-        # the 1 below is discount factor
-        processed_im_for_traj = discount_cumsum(traj_rewards, 1)[:-1].astype(np.float32)
-        # print('processed_im_for_traj', processed_im_for_traj)
-        processed_im_list.append(processed_im_for_traj)
-    final_power = np.concatenate(processed_im_list)
-    # print('final_power', final_power)
-    # print('power_rewards', power_rewards)
-    # print('pre advantages', train_batch[Postprocessing.ADVANTAGES])
-    train_batch[Postprocessing.ADVANTAGES] -= final_power
-    # print('post advantages', train_batch[Postprocessing.ADVANTAGES])
-    # print('pre call VF_PREDS', train_batch[SampleBatch.VF_PREDS])
+    # update rewards
+    train_batch[SampleBatch.REWARDS] -= power_rewards
+    
+    # update vf preds
     if isinstance(policy.model, tf.keras.Model):
         logits, state, extra_outs = policy.model(train_batch)
         value_fn_out = extra_outs[SampleBatch.VF_PREDS]
@@ -68,8 +53,30 @@ def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
         logits, state = policy.model(train_batch)
         value_fn_out = policy.model.value_function()
     train_batch[SampleBatch.VF_PREDS] = policy.model.value_function() 
-    train_batch[Postprocessing.VALUE_TARGETS] = train_batch[Postprocessing.ADVANTAGES] + train_batch[SampleBatch.VF_PREDS]
-    # print('post call VF_PREDS', train_batch[SampleBatch.VF_PREDS])
+
+    # update advantages and value targets
+    infos = train_batch[SampleBatch.INFOS]
+    traj_len = int(infos[0,-1])
+    advantage_data = []
+    value_target_data = []
+
+    for i in range(0, len(train_batch[SampleBatch.VF_PREDS]), traj_len):
+        vpred_t = np.concatenate(
+            [train_batch[SampleBatch.VF_PREDS][i:i+traj_len],
+                np.array([0])])
+        delta_t = (
+            train_batch[SampleBatch.REWARDS][i:i+traj_len] + 1 * vpred_t[1:] - vpred_t[:-1])
+        # This formula for the advantage comes from:
+        # "Generalized Advantage Estimation": https://arxiv.org/abs/1506.02438
+        advantage_data.append(discount_cumsum(delta_t, 1 * 1))
+        value_target = (
+            train_batch[Postprocessing.ADVANTAGES][i:i+traj_len] +
+            train_batch[SampleBatch.VF_PREDS][i:i+traj_len])
+        value_target_data.append(value_target)
+    train_batch[Postprocessing.ADVANTAGES] *= 0
+    train_batch[Postprocessing.ADVANTAGES] += np.concatenate(advantage_data)
+    train_batch[Postprocessing.VALUE_TARGETS] *= 0
+    train_batch[Postprocessing.VALUE_TARGETS] += np.concatenate(value_target_data)
 
 
 def ppo_surrogate_loss(
@@ -89,41 +96,23 @@ def ppo_surrogate_loss(
         Union[TensorType, List[TensorType]]: A single loss tensor or a list
             of loss tensors.
     """
+    # Update rewards with power intrinsic reward 
+    update_rewards_with_power(policy, train_batch)
+    
+    # print('train_batch[SampleBatch.VF_PREDS]', train_batch[SampleBatch.VF_PREDS])
     # print('train_batch[Postprocessing.ADVANTAGES]', train_batch[Postprocessing.ADVANTAGES])
-    # print('VF PREDS', train_batch[SampleBatch.VF_PREDS])
-    # infos = train_batch[SampleBatch.INFOS]
-    # print('infos', infos)
-    # observations = train_batch[SampleBatch.OBS]
-    # print('observations', observations)
-    # actions = train_batch[SampleBatch.ACTIONS]
-    # print('actions', actions)
-    # rewards = train_batch[SampleBatch.REWARDS]
-    # print('pre rewards', rewards)
-    # if len(train_batch[SampleBatch.REWARDS]) == 100:
-    #     raise Exception("hi")
+    # print('train_batch[Postprocessing.VALUE_TARGETS]', train_batch[Postprocessing.VALUE_TARGETS])
 
-    # # Update rewards with power intrinsic reward 
-    # update_rewards_with_power(policy, train_batch)
-    # # update_advantages_with_power(policy, train_batch)
-
-    # rewards = train_batch[SampleBatch.REWARDS]
-    # print('post rewards', rewards)
-
-    # prev_value_fn_out = train_batch[SampleBatch.VF_PREDS]
+    # if len(train_batch[Postprocessing.VALUE_TARGETS]) == 2:
+    #     raise Exception("hi from ppo_tf_policy")
 
     if isinstance(model, tf.keras.Model):
         logits, state, extra_outs = model(train_batch)
         value_fn_out = extra_outs[SampleBatch.VF_PREDS]
     else:
-        # print('VF prior', model.value_function())
-        # print('prev_value_fn_out', train_batch[SampleBatch.VF_PREDS])
         logits, state = model(train_batch)
         value_fn_out = model.value_function()
-        # print('VF post', model.value_function())
-        # print('value_fn_out', value_fn_out)
-
-    # print('diff', value_fn_out - prev_value_fn_out)
-
+        
     curr_action_dist = dist_class(logits, model)
 
     # RNN case: Mask away 0-padded chunks at end of time axis.
@@ -197,7 +186,7 @@ def ppo_surrogate_loss(
     policy._mean_kl_loss = policy._mean_kl = mean_kl_loss
     policy._value_fn_out = value_fn_out
 
-    if random.random() < 0.01:
+    if random.random() < 0.05:
         # infos = train_batch[SampleBatch.INFOS]
         # print('infos', infos)
         observations = train_batch[SampleBatch.OBS]

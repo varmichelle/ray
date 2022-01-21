@@ -104,28 +104,29 @@ def compute_advantages(policy: Policy,
         "Can't use gae without using a value function"
 
     if use_gae:
-        # update rewards
-        power_rewards = compute_power(rollout)
-        if power_rewards is not None:
-            # print('reward type pre', type(rollout[SampleBatch.REWARDS]))
-            rollout[SampleBatch.REWARDS] -= power_rewards
-            # print('reward type post', type(rollout[SampleBatch.REWARDS]))
-            # update VF prefs
-            logits, state = policy.model(rollout)
-            # print('VF type pre', type(rollout[SampleBatch.VF_PREDS]))
-            rollout[SampleBatch.VF_PREDS] = policy.model.value_function().numpy()
-            # print('VF type post', type(rollout[SampleBatch.VF_PREDS]))
+        # # UNCOMMENT THIS BLOCK FOR WORKING SOL AT ROLLOUT LEVEL
+        # # update rewards
+        # power_rewards = compute_power(rollout)
+        # if power_rewards is not None:
+        #     rollout[SampleBatch.REWARDS] -= power_rewards
+        #     # update VF prefs
+        #     logits, state = policy.model(rollout)
+        #     rollout[SampleBatch.VF_PREDS] = policy.model.value_function().numpy()
 
         # continue existing code..
         vpred_t = np.concatenate(
             [rollout[SampleBatch.VF_PREDS],
              np.array([last_r])])
+        # print('vpred_t', vpred_t)
         delta_t = (
             rollout[SampleBatch.REWARDS] + gamma * vpred_t[1:] - vpred_t[:-1])
+        # print('delta_t', delta_t)
         # This formula for the advantage comes from:
         # "Generalized Advantage Estimation": https://arxiv.org/abs/1506.02438
         rollout[Postprocessing.ADVANTAGES] = discount_cumsum(
             delta_t, gamma * lambda_)
+        # print('vf_preds', rollout[SampleBatch.VF_PREDS])
+        # print('advantages', rollout[Postprocessing.ADVANTAGES])
         rollout[Postprocessing.VALUE_TARGETS] = (
             rollout[Postprocessing.ADVANTAGES] +
             rollout[SampleBatch.VF_PREDS]).astype(np.float32)
@@ -149,6 +150,9 @@ def compute_advantages(policy: Policy,
     rollout[Postprocessing.ADVANTAGES] = rollout[
         Postprocessing.ADVANTAGES].astype(np.float32)
 
+    # print('rollout[SampleBatch.VF_PREDS]', rollout[SampleBatch.VF_PREDS])
+    # print('rollout[Postprocessing.ADVANTAGES]', rollout[Postprocessing.ADVANTAGES])
+    # print('rollout[Postprocessing.VALUE_TARGETS]', rollout[Postprocessing.VALUE_TARGETS])
     return rollout
 
 

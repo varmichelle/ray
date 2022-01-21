@@ -7,6 +7,7 @@ import random
 from ray.rllib.policy.sample_batch import DEFAULT_POLICY_ID, SampleBatch, \
     MultiAgentBatch
 from ray.rllib.utils.metrics.learner_info import LearnerInfoBuilder
+from ray.rllib.evaluation.postprocessing import Postprocessing
 
 logger = logging.getLogger(__name__)
 
@@ -100,27 +101,19 @@ def do_minibatch_sgd(samples, policies, local_worker, num_sgd_iter,
             continue
 
         batch = samples.policy_batches[policy_id]
+        # if policy_id == 'player_0':
+        #     print('batch[SampleBatch.VF_PREDS]', batch[SampleBatch.VF_PREDS])
+        #     print('batch[Postprocessing.ADVANTAGES]', batch[Postprocessing.ADVANTAGES])
+        #     print('batch[Postprocessing.VALUE_TARGETS]', batch[Postprocessing.VALUE_TARGETS])
         for field in standardize_fields:
+            # print('field', field)
             batch[field] = standardized(batch[field])
-
-        # infos = batch[SampleBatch.INFOS]
-        # print('infos', infos)
-        # observations = batch[SampleBatch.OBS]
-        # print('observations', observations)
-        # actions = batch[SampleBatch.ACTIONS]
-        # print('actions', actions)
-        # rewards = batch[SampleBatch.REWARDS]
-        # print('rewards', rewards)
 
         for i in range(num_sgd_iter):
             for minibatch in minibatches(batch, sgd_minibatch_size):
-                # obs = minibatch[SampleBatch.OBS]
-                # print('minibatch obs', obs)
-                # actions = minibatch[SampleBatch.ACTIONS]
-                # print('minibatch actions', actions)
-                # rewards = minibatch[SampleBatch.REWARDS]
-                # print('minibatch rewards', rewards)
-                # print()
+                # print('minibatch[SampleBatch.VF_PREDS]', minibatch[SampleBatch.VF_PREDS])
+                # print('minibatch[Postprocessing.ADVANTAGES]', minibatch[Postprocessing.ADVANTAGES])
+                # print('minibatch[Postprocessing.VALUE_TARGETS]', minibatch[Postprocessing.VALUE_TARGETS])
                 results = (local_worker.learn_on_batch(
                     MultiAgentBatch({
                         policy_id: minibatch
