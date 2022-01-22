@@ -23,7 +23,6 @@ from ray.rllib.utils.framework import try_import_tf, get_variable
 from ray.rllib.utils.tf_utils import explained_variance, make_tf_callable
 from ray.rllib.utils.typing import AgentID, LocalOptimizer, ModelGradients, \
     TensorType, TrainerConfigDict
-from ray.rllib.agents.pg.pg_tf_policy import update_advantages_with_power
 
 import numpy as np
 import random
@@ -37,13 +36,25 @@ tf1, tf, tfv = try_import_tf()
 logger = logging.getLogger(__name__)
 
 
+def get_batch_power_stats(train_batch: SampleBatch, power_rewards):
+    return {
+        'hi': 1,
+        'bye': 0,
+    }
+
 def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
     power_rewards = compute_power(train_batch)
     if power_rewards is None:
+        policy._batch_power_stats = {}
         return
 
     # update rewards
     train_batch[SampleBatch.REWARDS] -= power_rewards
+
+    # store stats on the accuracy of batch power
+    batch_power_stats = get_batch_power_stats(train_batch, power_rewards)
+    policy._batch_power_stats = batch_power_stats
+    print('policy._batch_power_stats', policy._batch_power_stats)
     
     # update vf preds
     if isinstance(policy.model, tf.keras.Model):
@@ -102,11 +113,6 @@ def ppo_surrogate_loss(
     # Update rewards with power intrinsic reward 
     power_rewards = update_rewards_with_power(policy, train_batch)
     
-    # print('train_batch[SampleBatch.ACTIONS]', train_batch[SampleBatch.ACTIONS])
-    # print('train_batch[SampleBatch.VF_PREDS]', train_batch[SampleBatch.VF_PREDS])
-    # print('train_batch[Postprocessing.ADVANTAGES]', train_batch[Postprocessing.ADVANTAGES])
-    # print('train_batch[Postprocessing.VALUE_TARGETS]', train_batch[Postprocessing.VALUE_TARGETS])
-
     if isinstance(model, tf.keras.Model):
         logits, state, extra_outs = model(train_batch)
         value_fn_out = extra_outs[SampleBatch.VF_PREDS]
@@ -224,7 +230,7 @@ def kl_and_loss_stats(policy: Policy,
     Returns:
         Dict[str, TensorType]: The stats dict.
     """
-    return {
+    kl_and_loss_stats = {
         "cur_kl_coeff": tf.cast(policy.kl_coeff, tf.float64),
         "cur_lr": tf.cast(policy.cur_lr, tf.float64),
         "total_loss": policy._total_loss,
@@ -236,6 +242,7 @@ def kl_and_loss_stats(policy: Policy,
         "entropy": policy._mean_entropy,
         "entropy_coeff": tf.cast(policy.entropy_coeff, tf.float64),
     }
+    return kl_and_loss_stats | policy._batch_power_stats
 
 
 # TODO: (sven) Deprecate once we only allow native keras models.
