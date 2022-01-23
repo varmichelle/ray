@@ -26,7 +26,7 @@ from ray.rllib.utils.typing import AgentID, LocalOptimizer, ModelGradients, \
 
 import numpy as np
 import random
-
+import configparser
 import sys
 sys.path.insert(0, '~/Github/avoiding-cop')
 from main import compute_power
@@ -34,7 +34,9 @@ from main import compute_power
 tf1, tf, tfv = try_import_tf()
 
 logger = logging.getLogger(__name__)
-
+config = configparser.ConfigParser()
+config.read('config.txt')
+args = config['PG']
 
 def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
     power_rewards, batch_power_accuracy_stats = compute_power(train_batch)
@@ -195,6 +197,42 @@ def ppo_surrogate_loss(
             if policy._vf[key] != value_fn_out.numpy()[i]:
                 raise Exception("inconsistent VF for same state!")
 
+    # Store stats on VF - true state difference
+    policy._vf_diff = {}
+    max_gt_power_dict = {
+        0: 0,
+        1: 6,
+        2: 4,
+        3: 10,
+        4: 6.43,
+        5: 12.15
+    }
+    mean_gt_power_dict = {
+        0: 0,
+        1: 2.67,
+        2: 0,  # actually 2.67 but for tie-breaking purposes treat action 2 as 0 power 0 env reward
+        3: 3.33,
+        4: 5.1,
+        5: 12.15
+    }
+    if args['power_agg'] == 'max':
+        gt_power_dict = max_gt_power_dict
+    elif args['power_agg'] == 'mean':
+        gt_power_dict = mean_gt_power_dict
+    else:
+        raise Exception(f'unknown power agg method args[\'power_agg\']')
+    env_reward_dict = {
+        0: 5,
+        1: 8.2,
+        2: 8.2,
+        3: 9,
+        4: 9.39,
+        5: 10.94
+    }
+    true_state_values = {}
+    for split in range(6):
+        true_state_values[split] = env_reward_dict[split] - gt_power_dict[split] * float(args['power_weight'])
+        policy._vf_diff[split] = policy._vf[split] - true_state_values[split]
     return total_loss
 
 
@@ -221,7 +259,7 @@ def kl_and_loss_stats(policy: Policy,
         "entropy": policy._mean_entropy,
         "entropy_coeff": tf.cast(policy.entropy_coeff, tf.float64),
     }
-    return kl_and_loss_stats | policy._batch_power_stats | policy._vf
+    return kl_and_loss_stats | policy._batch_power_stats | policy._vf | policy._vf_diff
 
 
 # TODO: (sven) Deprecate once we only allow native keras models.
