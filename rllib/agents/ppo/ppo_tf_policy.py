@@ -36,14 +36,8 @@ tf1, tf, tfv = try_import_tf()
 logger = logging.getLogger(__name__)
 
 
-def get_batch_power_stats(train_batch: SampleBatch, power_rewards):
-    return {
-        'hi': 1,
-        'bye': 0,
-    }
-
 def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
-    power_rewards = compute_power(train_batch)
+    power_rewards, batch_power_accuracy_stats = compute_power(train_batch)
     if power_rewards is None:
         policy._batch_power_stats = {}
         return
@@ -52,9 +46,7 @@ def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
     train_batch[SampleBatch.REWARDS] -= power_rewards
 
     # store stats on the accuracy of batch power
-    batch_power_stats = get_batch_power_stats(train_batch, power_rewards)
-    policy._batch_power_stats = batch_power_stats
-    print('policy._batch_power_stats', policy._batch_power_stats)
+    policy._batch_power_stats = batch_power_accuracy_stats
     
     # update vf preds
     if isinstance(policy.model, tf.keras.Model):
