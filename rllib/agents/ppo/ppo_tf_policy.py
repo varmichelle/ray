@@ -231,7 +231,7 @@ def ppo_surrogate_loss(
     }
     true_state_values = {}
     for split in range(6):
-        key = f'split_{obs}_vf'
+        key = f'split_{split}_vf'
         if key not in policy._vf:
             continue
         true_state_values[split] = env_reward_dict[split] - gt_power_dict[split] * float(args['power_weight'])
