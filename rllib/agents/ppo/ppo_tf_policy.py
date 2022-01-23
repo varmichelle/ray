@@ -182,31 +182,18 @@ def ppo_surrogate_loss(
     policy._mean_kl_loss = policy._mean_kl = mean_kl_loss
     policy._value_fn_out = value_fn_out
 
-    if random.random() < 0.05:
-        # infos = train_batch[SampleBatch.INFOS]
-        # print('infos', infos)
-        observations = train_batch[SampleBatch.OBS]
-        # print('observations', observations[:10])
-        actions = train_batch[SampleBatch.ACTIONS]
-        # print('actions', actions[:10])
-        rewards = train_batch[SampleBatch.REWARDS]
-        # print('rewards', rewards[:10])
-        # print("VF", model.value_function()[:10])
-        # print('ADVANTAGES', train_batch[Postprocessing.ADVANTAGES][:10])
-        # print('VALUE_TARGETS', train_batch[Postprocessing.VALUE_TARGETS][:10])
-        # if power_rewards is not None:
-        #     print('power_rewards', power_rewards[:10])
-        for i in range(len(train_batch[SampleBatch.OBS])):
-            obs = np.argmax(observations[i].numpy())
-            if obs != 0 and obs != 9:
-                print('obs', obs)
-                print('action', actions[i])
-                print('reward', rewards[i])
-                print('VF', model.value_function()[i])
-                print('advantage', train_batch[Postprocessing.ADVANTAGES][i])
-                print('value target', train_batch[Postprocessing.VALUE_TARGETS][i])
-                print('power_reward', power_rewards[i])
-                print()
+    # Store stats on VF
+    policy._vf = {}
+    for i in range(len(train_batch[SampleBatch.OBS])):
+        obs = np.argmax(train_batch[SampleBatch.OBS][i].numpy())
+        if obs == 6:
+            continue
+        key = f'split_{obs}_vf'
+        if key not in policy._vf:
+            policy._vf[key] = value_fn_out.numpy()[i]
+        else:
+            if policy._vf[key] != value_fn_out.numpy()[i]:
+                raise Exception("inconsistent VF for same state!")
 
     return total_loss
 
@@ -234,7 +221,7 @@ def kl_and_loss_stats(policy: Policy,
         "entropy": policy._mean_entropy,
         "entropy_coeff": tf.cast(policy.entropy_coeff, tf.float64),
     }
-    return kl_and_loss_stats | policy._batch_power_stats
+    return kl_and_loss_stats | policy._batch_power_stats | policy._vf
 
 
 # TODO: (sven) Deprecate once we only allow native keras models.
