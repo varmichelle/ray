@@ -197,6 +197,11 @@ def ppo_surrogate_loss(
             if policy._vf[key] != value_fn_out.numpy()[i]:
                 raise Exception("inconsistent VF for same state!")
 
+    for obs in range(6):
+        key = f'split_{obs}_vf'
+        if key not in policy._vf:
+            policy._vf[key] = 0
+
     # Store stats on VF - true state difference
     policy._vf_diff = {}
     max_gt_power_dict = {
@@ -233,9 +238,10 @@ def ppo_surrogate_loss(
     for split in range(6):
         key = f'split_{split}_vf'
         if key not in policy._vf:
-            continue
-        true_state_values[split] = env_reward_dict[split] - gt_power_dict[split] * float(args['power_weight'])
-        policy._vf_diff[key+'_diff'] = policy._vf[key] - true_state_values[split]
+            raise Exception(f'split {split} not found in policy._vf!')
+        else:
+            true_state_values[split] = env_reward_dict[split] - gt_power_dict[split] * float(args['power_weight'])
+            policy._vf_diff[key+'_diff'] = policy._vf[key] - true_state_values[split]
     return total_loss
 
 
