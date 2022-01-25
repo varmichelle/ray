@@ -188,7 +188,7 @@ def ppo_surrogate_loss(
     policy._vf = {}
     for i in range(len(train_batch[SampleBatch.OBS])):
         obs = np.argmax(train_batch[SampleBatch.OBS][i].numpy())
-        if obs == 6:
+        if obs == 5:
             continue
         key = f'split_{obs}_vf'
         if key not in policy._vf:
@@ -197,7 +197,7 @@ def ppo_surrogate_loss(
             if policy._vf[key] != value_fn_out.numpy()[i]:
                 raise Exception("inconsistent VF for same state!")
 
-    for obs in range(6):
+    for obs in range(5):
         key = f'split_{obs}_vf'
         if key not in policy._vf:
             policy._vf[key] = 0
@@ -206,19 +206,17 @@ def ppo_surrogate_loss(
     policy._vf_diff = {}
     max_gt_power_dict = {
         0: 0,
-        1: 6,
-        2: 4,
-        3: 10,
-        4: 6.43,
-        5: 12.15
+        1: 4,
+        2: 10,
+        3: 6.43,
+        4: 12.15
     }
     mean_gt_power_dict = {
         0: 0,
         1: 2.67,
-        2: 0,  # actually 2.67 but for tie-breaking purposes treat action 2 as 0 power 0 env reward
-        3: 3.33,
-        4: 5.1,
-        5: 12.15
+        2: 3.33,
+        3: 5.1,
+        4: 12.15
     }
     if args['power_agg'] == 'max':
         gt_power_dict = max_gt_power_dict
@@ -229,13 +227,12 @@ def ppo_surrogate_loss(
     env_reward_dict = {
         0: 5,
         1: 8.2,
-        2: 8.2,
-        3: 9,
-        4: 9.39,
-        5: 10.94
+        2: 9,
+        3: 9.39,
+        4: 10.94
     }
     true_state_values = {}
-    for split in range(6):
+    for split in range(5):
         key = f'split_{split}_vf'
         if key not in policy._vf:
             raise Exception(f'split {split} not found in policy._vf!')
