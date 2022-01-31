@@ -9,6 +9,9 @@ from ray.rllib.utils.annotations import DeveloperAPI
 from ray.rllib.utils.typing import AgentID
 
 import traceback
+import sys
+sys.path.insert(0, '~/Github/avoiding-cop')
+from main import compute_power
 
 
 class Postprocessing:
@@ -92,12 +95,6 @@ def compute_advantages(policy: Policy,
         SampleBatch (SampleBatch): Object with experience from rollout and
             processed rewards.
     """
-    import sys
-    sys.path.insert(0, '~/Github/avoiding-cop')
-    from main import compute_power
-
-    # print(rollout[SampleBatch.REWARDS])
-
     assert SampleBatch.VF_PREDS in rollout or not use_critic, \
         "use_critic=True but values not found"
     assert use_critic or not use_gae, \
@@ -106,10 +103,10 @@ def compute_advantages(policy: Policy,
     if use_gae:
         # # UNCOMMENT THIS BLOCK FOR WORKING SOL AT ROLLOUT LEVEL
         # # update rewards
-        # power_rewards = compute_power(rollout)
+        # power_rewards, batch_power_accuracy_stats = compute_power(rollout)
         # if power_rewards is not None:
         #     rollout[SampleBatch.REWARDS] -= power_rewards
-        #     # update VF prefs
+        #     # update VF preds
         #     logits, state = policy.model(rollout)
         #     rollout[SampleBatch.VF_PREDS] = policy.model.value_function().numpy()
 

@@ -755,6 +755,7 @@ class RolloutWorker(ParallelIteratorWorker):
             logger.info("Generating sample batch of size {}".format(
                 self.rollout_fragment_length))
 
+        print('ROLLOUT EVAL INPUT_READER', self.input_reader)
         batches = [self.input_reader.next()]
         steps_so_far = batches[0].count if \
             self.count_steps_by == "env_steps" else \
