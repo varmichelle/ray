@@ -184,61 +184,94 @@ def ppo_surrogate_loss(
     policy._mean_kl_loss = policy._mean_kl = mean_kl_loss
     policy._value_fn_out = value_fn_out
 
+    # Store stats on policy probs
+    policy._probs = {}
+    t1_probs = [0 for a in range(5)]
+    t2_probs = [0 for a in range(5)]  # marginalizing over s at t=2
+    batch_len = len(train_batch[SampleBatch.OBS])
+    for t in range(batch_len):
+        # track actions for policy probs
+        action = train_batch[SampleBatch.ACTIONS][t].numpy()
+        if t % 2 == 0:  # 0 index so even indices are t=1
+            t1_probs[action] += 1
+        else:
+            t2_probs[action] += 1
+    t1_probs = [prob / (batch_len/2) for prob in t1_probs]
+    t2_probs = [prob / (batch_len/2) for prob in t2_probs]
+    max_t1_prob = 0
+    max_t1_prob_a = 0
+    max_t2_prob = 0
+    max_t2_prob_a = 0
+    for a in range(5):
+        policy._probs[f'player0_t1_prob{a}'] = t1_probs[a]
+        policy._probs[f'player0_t2_prob{a}'] = t2_probs[a]
+        if t1_probs[a] > max_t1_prob:
+            max_t1_prob = t1_probs[a]
+            max_t1_prob_a = a
+        if t2_probs[a] > max_t2_prob:
+            max_t2_prob = t2_probs[a]
+            max_t2_prob_a = a
+    policy._probs[f'player0_t1_max_prob'] = max_t1_prob
+    policy._probs[f'player0_t1_max_prob_a'] = max_t1_prob_a
+    policy._probs[f'player0_t2_max_prob'] = max_t2_prob
+    policy._probs[f'player0_t2_max_prob_a'] = max_t2_prob_a
+
     # Store stats on VF
-    policy._vf = {}
-    for i in range(len(train_batch[SampleBatch.OBS])):
-        obs = np.argmax(train_batch[SampleBatch.OBS][i].numpy())
-        if obs == 5:
-            continue
-        key = f'split_{obs}_vf'
-        if key not in policy._vf:
-            policy._vf[key] = value_fn_out.numpy()[i]
-        else:
-            if policy._vf[key] != value_fn_out.numpy()[i]:
-                raise Exception("inconsistent VF for same state!")
+    # policy._vf = {}
+    # # BATCH METHOD
+    # for i in range(len(train_batch[SampleBatch.OBS])):
+    #     obs = np.argmax(train_batch[SampleBatch.OBS][i].numpy())
+    #     if obs == 5:
+    #         continue
+    #     key = f'split_{obs}_vf'
+    #     if key not in policy._vf:
+    #         policy._vf[key] = value_fn_out.numpy()[i]
+    #     else:
+    #         if policy._vf[key] != value_fn_out.numpy()[i]:
+    #             raise Exception("inconsistent VF for same state!")
 
-    for obs in range(5):
-        key = f'split_{obs}_vf'
-        if key not in policy._vf:
-            policy._vf[key] = 0
+    # for obs in range(5):
+    #     key = f'split_{obs}_vf'
+    #     if key not in policy._vf:
+    #         policy._vf[key] = 0
 
-    # Store stats on VF - true state difference
-    policy._vf_diff = {}
-    max_gt_power_dict = {
-        0: 0,
-        1: 4,
-        2: 10,
-        3: 6.43,
-        4: 12.15
-    }
-    mean_gt_power_dict = {
-        0: 0,
-        1: 2.67,
-        2: 3.33,
-        3: 5.1,
-        4: 12.15
-    }
-    if args['power_agg'] == 'max':
-        gt_power_dict = max_gt_power_dict
-    elif args['power_agg'] == 'mean':
-        gt_power_dict = mean_gt_power_dict
-    else:
-        raise Exception(f'unknown power agg method args[\'power_agg\']')
-    env_reward_dict = {
-        0: 5,
-        1: 8.2,
-        2: 9,
-        3: 9.39,
-        4: 10.94
-    }
-    true_state_values = {}
-    for split in range(5):
-        key = f'split_{split}_vf'
-        if key not in policy._vf:
-            raise Exception(f'split {split} not found in policy._vf!')
-        else:
-            true_state_values[split] = env_reward_dict[split] - gt_power_dict[split] * float(args['power_weight'])
-            policy._vf_diff[key+'_diff'] = policy._vf[key] - true_state_values[split]
+    # # Store stats on VF - true state difference
+    # policy._vf_diff = {}
+    # max_gt_power_dict = {
+    #     0: 0,
+    #     1: 4,
+    #     2: 10,
+    #     3: 6.43,
+    #     4: 12.15
+    # }
+    # mean_gt_power_dict = {
+    #     0: 0,
+    #     1: 2.67,
+    #     2: 3.33,
+    #     3: 5.1,
+    #     4: 12.15
+    # }
+    # if args['power_agg'] == 'max':
+    #     gt_power_dict = max_gt_power_dict
+    # elif args['power_agg'] == 'mean':
+    #     gt_power_dict = mean_gt_power_dict
+    # else:
+    #     raise Exception(f'unknown power agg method args[\'power_agg\']')
+    # env_reward_dict = {
+    #     0: 5,
+    #     1: 8.2,
+    #     2: 9,
+    #     3: 9.39,
+    #     4: 10.94
+    # }
+    # true_state_values = {}
+    # for split in range(5):
+    #     key = f'split_{split}_vf'
+    #     if key not in policy._vf:
+    #         raise Exception(f'split {split} not found in policy._vf!')
+    #     else:
+    #         true_state_values[split] = env_reward_dict[split] - gt_power_dict[split] * float(args['power_weight'])
+    #         policy._vf_diff[key+'_diff'] = policy._vf[key] - true_state_values[split]
     return total_loss
 
 
@@ -265,7 +298,7 @@ def kl_and_loss_stats(policy: Policy,
         "entropy": policy._mean_entropy,
         "entropy_coeff": tf.cast(policy.entropy_coeff, tf.float64),
     }
-    return kl_and_loss_stats | policy._batch_power_stats | policy._vf | policy._vf_diff
+    return kl_and_loss_stats | policy._batch_power_stats | policy._probs
 
 
 # TODO: (sven) Deprecate once we only allow native keras models.
