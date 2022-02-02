@@ -104,8 +104,8 @@ def ppo_surrogate_loss(
         Union[TensorType, List[TensorType]]: A single loss tensor or a list
             of loss tensors.
     """
-    # Update rewards with power intrinsic reward 
-    power_rewards = update_rewards_with_power(policy, train_batch)
+    # # Update rewards with power intrinsic reward 
+    # power_rewards = update_rewards_with_power(policy, train_batch)
     
     if isinstance(model, tf.keras.Model):
         logits, state, extra_outs = model(train_batch)
@@ -298,7 +298,7 @@ def kl_and_loss_stats(policy: Policy,
         "entropy": policy._mean_entropy,
         "entropy_coeff": tf.cast(policy.entropy_coeff, tf.float64),
     }
-    return kl_and_loss_stats | policy._batch_power_stats | policy._probs
+    return kl_and_loss_stats | policy._probs # | policy._batch_power_stats 
 
 
 # TODO: (sven) Deprecate once we only allow native keras models.

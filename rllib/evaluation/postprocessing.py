@@ -9,9 +9,6 @@ from ray.rllib.utils.annotations import DeveloperAPI
 from ray.rllib.utils.typing import AgentID
 
 import traceback
-import sys
-sys.path.insert(0, '~/Github/avoiding-cop')
-from main import compute_power
 
 
 class Postprocessing:
@@ -100,15 +97,20 @@ def compute_advantages(policy: Policy,
     assert use_critic or not use_gae, \
         "Can't use gae without using a value function"
 
+    import sys
+    sys.path.insert(0, '~/Github/avoiding-cop')
+    from main import compute_power
+
     if use_gae:
-        # # UNCOMMENT THIS BLOCK FOR WORKING SOL AT ROLLOUT LEVEL
-        # # update rewards
-        # power_rewards, batch_power_accuracy_stats = compute_power(rollout)
-        # if power_rewards is not None:
-        #     rollout[SampleBatch.REWARDS] -= power_rewards
-        #     # update VF preds
-        #     logits, state = policy.model(rollout)
-        #     rollout[SampleBatch.VF_PREDS] = policy.model.value_function().numpy()
+        # UNCOMMENT THIS BLOCK FOR WORKING SOL AT ROLLOUT LEVEL
+        # update rewards
+        power_rewards, power_accuracy_stats = compute_power(rollout)
+        if power_rewards is not None:
+            rollout[SampleBatch.REWARDS] -= power_rewards
+            # print('um', rollout[SampleBatch.REWARDS])
+            # update VF preds
+            logits, state = policy.model(rollout)
+            rollout[SampleBatch.VF_PREDS] = policy.model.value_function().numpy()
 
         # continue existing code..
         vpred_t = np.concatenate(
