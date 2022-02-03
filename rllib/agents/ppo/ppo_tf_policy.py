@@ -29,7 +29,7 @@ import random
 import configparser
 import sys
 sys.path.insert(0, '~/Github/avoiding-cop')
-from main import compute_power
+from main import compute_power, get_batch_sim_power_stats
 
 tf1, tf, tfv = try_import_tf()
 
@@ -106,6 +106,9 @@ def ppo_surrogate_loss(
     """
     # # Update rewards with power intrinsic reward 
     # power_rewards = update_rewards_with_power(policy, train_batch)
+
+    # # Get stats from simulator power, aggregated over the batch
+    # policy._batch_power_stats = get_batch_sim_power_stats(train_batch)
     
     if isinstance(model, tf.keras.Model):
         logits, state, extra_outs = model(train_batch)
@@ -216,62 +219,6 @@ def ppo_surrogate_loss(
     policy._probs[f'player0_t2_max_prob'] = max_t2_prob
     policy._probs[f'player0_t2_max_prob_a'] = max_t2_prob_a
 
-    # Store stats on VF
-    # policy._vf = {}
-    # # BATCH METHOD
-    # for i in range(len(train_batch[SampleBatch.OBS])):
-    #     obs = np.argmax(train_batch[SampleBatch.OBS][i].numpy())
-    #     if obs == 5:
-    #         continue
-    #     key = f'split_{obs}_vf'
-    #     if key not in policy._vf:
-    #         policy._vf[key] = value_fn_out.numpy()[i]
-    #     else:
-    #         if policy._vf[key] != value_fn_out.numpy()[i]:
-    #             raise Exception("inconsistent VF for same state!")
-
-    # for obs in range(5):
-    #     key = f'split_{obs}_vf'
-    #     if key not in policy._vf:
-    #         policy._vf[key] = 0
-
-    # # Store stats on VF - true state difference
-    # policy._vf_diff = {}
-    # max_gt_power_dict = {
-    #     0: 0,
-    #     1: 4,
-    #     2: 10,
-    #     3: 6.43,
-    #     4: 12.15
-    # }
-    # mean_gt_power_dict = {
-    #     0: 0,
-    #     1: 2.67,
-    #     2: 3.33,
-    #     3: 5.1,
-    #     4: 12.15
-    # }
-    # if args['power_agg'] == 'max':
-    #     gt_power_dict = max_gt_power_dict
-    # elif args['power_agg'] == 'mean':
-    #     gt_power_dict = mean_gt_power_dict
-    # else:
-    #     raise Exception(f'unknown power agg method args[\'power_agg\']')
-    # env_reward_dict = {
-    #     0: 5,
-    #     1: 8.2,
-    #     2: 9,
-    #     3: 9.39,
-    #     4: 10.94
-    # }
-    # true_state_values = {}
-    # for split in range(5):
-    #     key = f'split_{split}_vf'
-    #     if key not in policy._vf:
-    #         raise Exception(f'split {split} not found in policy._vf!')
-    #     else:
-    #         true_state_values[split] = env_reward_dict[split] - gt_power_dict[split] * float(args['power_weight'])
-    #         policy._vf_diff[key+'_diff'] = policy._vf[key] - true_state_values[split]
     return total_loss
 
 
@@ -298,7 +245,7 @@ def kl_and_loss_stats(policy: Policy,
         "entropy": policy._mean_entropy,
         "entropy_coeff": tf.cast(policy.entropy_coeff, tf.float64),
     }
-    return kl_and_loss_stats | policy._probs # | policy._batch_power_stats 
+    return kl_and_loss_stats | policy._probs  # | policy._batch_power_stats
 
 
 # TODO: (sven) Deprecate once we only allow native keras models.
