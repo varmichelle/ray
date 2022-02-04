@@ -189,8 +189,8 @@ def ppo_surrogate_loss(
 
     # Store stats on policy probs
     policy._probs = {}
-    t1_probs = [0 for a in range(5)]
-    t2_probs = [0 for a in range(5)]  # marginalizing over s at t=2
+    t1_probs = [0 for a in range(6)]
+    t2_probs = [0 for a in range(6)]  # marginalizing over s at t=2
     batch_len = len(train_batch[SampleBatch.OBS])
     for t in range(batch_len):
         # track actions for policy probs
