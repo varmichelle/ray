@@ -205,7 +205,7 @@ def ppo_surrogate_loss(
     max_t1_prob_a = 0
     max_t2_prob = 0
     max_t2_prob_a = 0
-    for a in range(5):
+    for a in range(6):
         policy._probs[f'player0_t1_prob{a}'] = t1_probs[a]
         policy._probs[f'player0_t2_prob{a}'] = t2_probs[a]
         if t1_probs[a] > max_t1_prob:
