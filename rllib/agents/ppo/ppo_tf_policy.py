@@ -29,7 +29,7 @@ import random
 import configparser
 import sys
 sys.path.insert(0, '~/Github/avoiding-cop')
-from main import compute_power, get_batch_sim_power_stats
+from main import compute_power
 
 tf1, tf, tfv = try_import_tf()
 
@@ -39,7 +39,7 @@ config.read('config.txt')
 args = config['PG']
 
 def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
-    power_rewards, batch_power_accuracy_stats = compute_power(train_batch)
+    power_rewards, power_accuracy_stats = compute_power(train_batch, policy)
     if power_rewards is None:
         policy._batch_power_stats = {}
         return
@@ -47,8 +47,8 @@ def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
     # update rewards
     train_batch[SampleBatch.REWARDS] -= power_rewards
 
-    # store stats on the accuracy of batch power
-    policy._batch_power_stats = batch_power_accuracy_stats
+    # store stats on the accuracy of power
+    policy._power_stats = power_accuracy_stats
     
     # update vf preds
     if isinstance(policy.model, tf.keras.Model):
@@ -104,11 +104,8 @@ def ppo_surrogate_loss(
         Union[TensorType, List[TensorType]]: A single loss tensor or a list
             of loss tensors.
     """
-    # # Update rewards with power intrinsic reward 
-    # power_rewards = update_rewards_with_power(policy, train_batch)
-
-    # # Get stats from simulator power, aggregated over the batch
-    # policy._batch_power_stats = get_batch_sim_power_stats(train_batch)
+    # Update rewards with power intrinsic reward 
+    power_rewards = update_rewards_with_power(policy, train_batch)
     
     if isinstance(model, tf.keras.Model):
         logits, state, extra_outs = model(train_batch)
@@ -245,7 +242,7 @@ def kl_and_loss_stats(policy: Policy,
         "entropy": policy._mean_entropy,
         "entropy_coeff": tf.cast(policy.entropy_coeff, tf.float64),
     }
-    return kl_and_loss_stats | policy._probs  # | policy._batch_power_stats
+    return kl_and_loss_stats | policy._probs | policy._power_stats
 
 
 # TODO: (sven) Deprecate once we only allow native keras models.

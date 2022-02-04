@@ -102,16 +102,16 @@ def compute_advantages(policy: Policy,
     from main import compute_power
 
     if use_gae:
-        # UNCOMMENT THIS BLOCK FOR WORKING SOL AT ROLLOUT LEVEL
-        # update rewards
-        power_rewards, power_accuracy_stats = compute_power(rollout, policy)
-        if power_rewards is not None:
-            rollout[SampleBatch.REWARDS] -= power_rewards
-            # print('rollout[SampleBatch.REWARDS]', rollout[SampleBatch.REWARDS])
-            # update VF preds
-            logits, state = policy.model(rollout)
-            rollout[SampleBatch.VF_PREDS] = policy.model.value_function().numpy()
-            # print('SampleBatch.VF_PREDS', SampleBatch.VF_PREDS)
+        # # UNCOMMENT THIS BLOCK FOR WORKING SOL AT ROLLOUT LEVEL
+        # # update rewards
+        # power_rewards, power_accuracy_stats = compute_power(rollout, policy)
+        # if power_rewards is not None:
+        #     rollout[SampleBatch.REWARDS] -= power_rewards
+        #     # print('rollout[SampleBatch.REWARDS]', rollout[SampleBatch.REWARDS])
+        #     # update VF preds
+        #     logits, state = policy.model(rollout)
+        #     rollout[SampleBatch.VF_PREDS] = policy.model.value_function().numpy()
+        #     # print('SampleBatch.VF_PREDS', SampleBatch.VF_PREDS)
 
         # continue existing code..
         vpred_t = np.concatenate(
