@@ -41,7 +41,7 @@ args = config['PG']
 def update_rewards_with_power(policy: Policy, train_batch: SampleBatch):
     power_rewards, power_accuracy_stats = compute_power(train_batch, policy)
     if power_rewards is None:
-        policy._batch_power_stats = {}
+        policy._power_stats = {}
         return
 
     # update rewards
